@@ -7,7 +7,7 @@ local db
 
 function M.init()
 	if not has_sqlite then
-		require("bookwyrm.message").error("sqlite required")
+		require("bookwyrm.notify").error("sqlite required")
 		return
 	end
 

@@ -1,7 +1,7 @@
 local M = {}
 
 function M.check()
-	vim.health.start("boowkyrm.nvim report")
+	vim.health.start("bookwyrm.nvim report")
 
 	if pcall(require, "sqlite") then
 		vim.health.ok("sqlite.lua is installed")
