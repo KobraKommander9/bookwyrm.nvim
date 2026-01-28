@@ -19,6 +19,7 @@
 --- @field note_id integer # ID of linked note
 
 --- @class BookwyrmLink
+--- @field alias string? # The link alias
 --- @field context string # Link context
 --- @field loc Range # Link location
 --- @field note_id integer # ID of linked note
@@ -26,13 +27,12 @@
 --- @field target_note string? # Title of target note
 
 --- @class BookwyrmTag
---- @field loc Range? # The location of the tag, if not in metadata
 --- @field note_id integer # ID of aliased note
 --- @field tag string # Tag
 
 --- @class BookwyrmTask
 --- @field content string # Task content
---- @field completed boolean # If task was completed
+--- @field status integer # Task status
 --- @field id integer # Task ID
 --- @field line integer # Line nr of task in note
 --- @field note_id integer # ID of note where task is located
@@ -41,7 +41,6 @@
 --- @field id integer # Note ID
 --- @field path string # Absolute note path
 --- @field title string # Title of note
---- @field update_time integer # Unix timestamp or iso string
 ---
 --- @field aliases BookwyrmAlias[]
 --- @field anchors BookwyrmAnchor[]

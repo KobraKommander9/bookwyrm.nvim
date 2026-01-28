@@ -198,8 +198,8 @@ local function parse_task(linenr, line, data)
 	if status then
 		table.insert(data.tasks, {
 			content = vim.trim(content),
-			completed = (status:lower() == "x"),
 			line = linenr,
+			status = (status:lower() == "x") and 1 or 0,
 		})
 	end
 end
@@ -232,7 +232,7 @@ end
 --- Parses the buffer to produce a BookwyrmNote artifact.
 ---
 --- @param bufnr integer # The buffer number of the buffer being parsed
---- @return BookwyrmNote?
+--- @return BookwyrmNote
 function M.parse_buffer(bufnr)
 	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 	local path = vim.api.nvim_buf_get_name(bufnr)
