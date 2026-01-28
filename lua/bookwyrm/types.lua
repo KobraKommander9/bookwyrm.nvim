@@ -6,7 +6,7 @@
 
 --- @class Range
 --- @field start RangeEntry # Start of range
---- @field end RangeEntry # End of range
+--- @field finish RangeEntry # End of range
 
 --- @class BookwyrmAlias
 --- @field alias string # Alias
@@ -19,12 +19,11 @@
 --- @field note_id integer # ID of linked note
 
 --- @class BookwyrmLink
---- @field col integer # Column nr of link in note
---- @field content string # Link content
---- @field line integer # Line nr of link in note
+--- @field context string # Link context
+--- @field loc Range # Link location
 --- @field note_id integer # ID of linked note
---- @field target_anchor string|nil # Target anchor id, if any
---- @field target_note string|nil # Title of target note
+--- @field target_anchor string? # Target anchor id, if any
+--- @field target_note string? # Title of target note
 
 --- @class BookwyrmTag
 --- @field tag string # Tag

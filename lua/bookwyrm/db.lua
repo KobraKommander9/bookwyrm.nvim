@@ -52,7 +52,7 @@ function M.init()
 
 		db:create("links", {
 			col = { "integer", required = true },
-			content = { "text", required = true },
+			context = { "text", required = true },
 			line = { "integer", required = true },
 			note_id = { "integer", foreign_key = { "notes", "id", on_delete = "cascade" } },
 			target_anchor = "text",
