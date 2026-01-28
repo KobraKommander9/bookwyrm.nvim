@@ -187,6 +187,23 @@ local function parse_metadata(line, data)
 	end
 end
 
+--- Parses a task from the line, if any. Tasks are expected to be of the form
+--- '- [ ] Content' or '- [x] Content'.
+---
+--- @param linenr integer # The line number (0 indexed)
+--- @param line string # The line to parse
+--- @param data BookwyrmNote # The note to populate
+local function parse_task(linenr, line, data)
+	local status, content = line:match("^%s*-%s*%[([%sxX])%]%s*(.*)$")
+	if status then
+		table.insert(data.tasks, {
+			content = vim.trim(content),
+			completed = (status:lower() == "x"),
+			line = linenr,
+		})
+	end
+end
+
 --- Deduplicates tag and alias metadata from the note.
 ---
 --- @param data BookwyrmNote
@@ -243,6 +260,8 @@ function M.parse_buffer(bufnr)
 		elseif inside_metadata then
 			parse_metadata(line, data)
 		else
+			parse_task(i - 1, line, data)
+
 			local masked = parse_links(i - 1, line, data)
 			parse_anchors(bufnr, i - 1, masked, active_anchors, data)
 		end
