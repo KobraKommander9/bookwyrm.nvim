@@ -64,48 +64,55 @@ local function parse_anchors(bufnr, linenr, line, active_starts, data)
 	end)
 
 	-- block anchor: <beginning of block>^id
-	line = line:gsub("()%s%^([%w%-_]+)()", function(start_col, id, end_col)
-		local final_start = { line = linenr, character = 0 }
-		local block_text = line:sub(1, start_col - 1)
+	line = line:gsub("()(.?)%^([%w%-_]+)()", function(start_col, prefix, id, end_col)
+		if prefix == "" or prefix:match("%s") then
+			local anchor_col = (prefix == "") and (start_col - 1) or start_col
 
-		local node = vim.treesitter.get_node({ bufnr = bufnr, pos = { linenr, start_col - 1 } })
-		if node then
-			--- @type TSNode?
-			local curr = node
+			local final_start = { line = linenr, character = 0 }
+			local block_text = line:sub(1, anchor_col)
 
-			while curr do
-				local type = curr:type()
+			local node = vim.treesitter.get_node({ bufnr = bufnr, pos = { linenr, anchor_col } })
+			if node then
+				--- @type TSNode?
+				local curr = node
 
-				if type:find("paragraph") or type:find("section") or type:find("list_item") then
-					local s_row, s_col, _, _ = curr:range()
-					final_start = { line = s_row, character = s_col }
+				while curr do
+					local type = curr:type()
 
-					local content_lines = {}
-					if not (s_row == linenr and s_col == start_col - 1) then
-						content_lines = vim.api.nvim_buf_get_text(bufnr, s_row, s_col, linenr, start_col - 1, {})
+					if type:find("paragraph") or type:find("section") or type:find("list_item") then
+						local s_row, s_col, _, _ = curr:range()
+						final_start = { line = s_row, character = s_col }
+
+						local content_lines = {}
+						if not (s_row == linenr and s_col == anchor_col) then
+							content_lines = vim.api.nvim_buf_get_text(bufnr, s_row, s_col, linenr, anchor_col, {})
+						end
+
+						if #content_lines > 0 then
+							block_text = table.concat(content_lines, "\n")
+						end
+
+						break
 					end
 
-					if #content_lines > 0 then
-						block_text = table.concat(content_lines, "\n")
-					end
-
-					break
+					curr = curr:parent()
 				end
-
-				curr = curr:parent()
 			end
+
+			table.insert(data.anchors, {
+				anchor_id = id,
+				content = block_text,
+				loc = {
+					start = final_start,
+					finish = { line = linenr, character = end_col - 1 },
+				},
+			})
+
+			return prefix .. string.rep(" ", end_col - (start_col + #prefix))
 		end
 
-		table.insert(data.anchors, {
-			anchor_id = id,
-			content = block_text,
-			loc = {
-				start = final_start,
-				finish = { line = linenr, character = end_col - 1 },
-			},
-		})
-
-		return string.rep(" ", end_col - start_col)
+		-- not a block anchor
+		return nil
 	end)
 
 	return line
@@ -180,16 +187,6 @@ local function parse_metadata(line, data)
 	end
 end
 
---- Parses tags from the buffer line
----
---- @param line string # The line to parse
---- @param data BookwyrmNote # The note to populate
-local function parse_tags(line, data)
-	for tag in line:gmatch("[%s^]#([%w%-_]+)") do
-		table.insert(data.tags, { tag = tag })
-	end
-end
-
 --- Deduplicates tag and alias metadata from the note.
 ---
 --- @param data BookwyrmNote
@@ -243,14 +240,11 @@ function M.parse_buffer(bufnr)
 		local line = lines[i]
 		if inside_metadata and line == "---" then
 			inside_metadata = false
-		end
-
-		if inside_metadata then
+		elseif inside_metadata then
 			parse_metadata(line, data)
 		else
 			local masked = parse_links(i - 1, line, data)
-			masked = parse_anchors(bufnr, i - 1, masked, active_anchors, data)
-			parse_tags(masked, data)
+			parse_anchors(bufnr, i - 1, masked, active_anchors, data)
 		end
 	end
 
