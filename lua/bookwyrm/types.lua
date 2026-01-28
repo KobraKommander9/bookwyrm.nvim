@@ -47,3 +47,10 @@
 --- @field links BookwyrmLink[]
 --- @field tags BookwyrmTag[]
 --- @field tasks BookwyrmTask[]
+
+--- @class BookwyrmBook
+--- @field active integer # 1 if active
+--- @field db_path string # Absolute path to notebook db
+--- @field id integer # Noteboook ID
+--- @field path string # Absolute path to notebook
+--- @field title string # Notebook title
