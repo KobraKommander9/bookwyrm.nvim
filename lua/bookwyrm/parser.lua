@@ -15,6 +15,7 @@ local M = {}
 --- @param line string # The line to parse
 --- @param active_starts table # The list of currently active ranges
 --- @param data BookwyrmNote # The note to populate
+--- @return string # The masked line with parsed data stripped
 local function parse_anchors(bufnr, linenr, line, active_starts, data)
 	-- multiline range anchors
 	line = line:gsub("()%[%^start:([%w%-_]+)%]()", function(start_col, id, end_col)
@@ -63,7 +64,7 @@ local function parse_anchors(bufnr, linenr, line, active_starts, data)
 	end)
 
 	-- block anchor: <beginning of block>^id
-	for start_col, id, end_col in line:gmatch("()%s%^([%w%-_]+)()") do
+	line = line:gsub("()%s%^([%w%-_]+)()", function(start_col, id, end_col)
 		local final_start = { line = linenr, character = 0 }
 		local block_text = line:sub(1, start_col - 1)
 
@@ -103,7 +104,11 @@ local function parse_anchors(bufnr, linenr, line, active_starts, data)
 				finish = { line = linenr, character = end_col - 1 },
 			},
 		})
-	end
+
+		return string.rep(" ", end_col - start_col)
+	end)
+
+	return line
 end
 
 --- Parses links from the line and appends them to the note. Links are expected
@@ -112,10 +117,11 @@ end
 --- @param linenr integer # The line number (0 indexed)
 --- @param line string # The line to parse
 --- @param data BookwyrmNote # The note to populate
+--- @return string # The masked line with parsed data stripped
 local function parse_links(linenr, line, data)
 	local id_pattern = "^[%w%-_]+$"
 
-	for start_pos, raw_link, end_pos in line:gmatch("()%[%[(.-)%]%]()") do
+	line = line:gsub("()%[%[(.-)%]%]()", function(start_pos, raw_link, end_pos)
 		local target, alias = raw_link:match("([^|]+)|?(.*)")
 		target = target or ""
 
@@ -138,7 +144,11 @@ local function parse_links(linenr, line, data)
 			target_anchor = anchor ~= "" and anchor or nil,
 			target_note = note ~= "" and note or nil,
 		})
-	end
+
+		return string.rep(" ", end_pos - start_pos)
+	end)
+
+	return line
 end
 
 --- Parses metadata from the note metadata
@@ -168,6 +178,41 @@ local function parse_metadata(line, data)
 			})
 		end
 	end
+end
+
+--- Parses tags from the buffer line
+---
+--- @param line string # The line to parse
+--- @param data BookwyrmNote # The note to populate
+local function parse_tags(line, data)
+	for tag in line:gmatch("[%s^]#([%w%-_]+)") do
+		table.insert(data.tags, { tag = tag })
+	end
+end
+
+--- Deduplicates tag and alias metadata from the note.
+---
+--- @param data BookwyrmNote
+local function deduplicate_metadata(data)
+	local seen_tags = {}
+	local unique_tags = {}
+	for _, item in ipairs(data.tags) do
+		if not seen_tags[item.tag] then
+			table.insert(unique_tags, item)
+			seen_tags[item.tag] = true
+		end
+	end
+	data.tags = unique_tags
+
+	local seen_aliases = {}
+	local unique_aliases = {}
+	for _, item in ipairs(data.aliases) do
+		if not seen_aliases[item.alias] then
+			table.insert(unique_aliases, item)
+			seen_aliases[item.alias] = true
+		end
+	end
+	data.aliases = unique_aliases
 end
 
 --- Parses the buffer to produce a BookwyrmNote artifact.
@@ -203,10 +248,13 @@ function M.parse_buffer(bufnr)
 		if inside_metadata then
 			parse_metadata(line, data)
 		else
-			parse_links(i, line, data)
-			parse_anchors(bufnr, i, line, active_anchors, data)
+			local masked = parse_links(i - 1, line, data)
+			masked = parse_anchors(bufnr, i - 1, masked, active_anchors, data)
+			parse_tags(masked, data)
 		end
 	end
+
+	deduplicate_metadata(data)
 
 	return data
 end
