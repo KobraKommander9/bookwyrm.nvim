@@ -14,6 +14,8 @@ end
 local registry = nil
 --- @type sqlite_db?
 local active = nil
+--- @type integer?
+local active_id = nil
 --- @type string?
 local active_title = nil
 
@@ -35,15 +37,100 @@ function M.init_registry(path)
 	})
 end
 
+--- Bootstraps the notebook db with the correct schemas.
+---
+--- @param db sqlite_db # The notebook db
+local function bootstrap_notebook(db)
+	db:create("notes", {
+		id = { "integer", primary = true, autoincrement = true },
+		path = { "text", unique = true, required = true },
+		title = { "text", required = true },
+	})
+
+	db:create("tags", {
+		note_id = { "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
+		tag = { "text", required = true },
+
+		unique = { "note_id", "tag" },
+	})
+
+	db:create("aliases", {
+		alias = { "text", required = true },
+		note_id = { "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
+
+		unique = { "note_id", "alias" },
+	})
+
+	db:create("anchors", {
+		anchor_id = { "text", required = true },
+		content = { "text", required = true },
+		note_id = { "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
+
+		start_line = { "integer", required = true },
+		start_char = { "integer", required = true },
+		end_line = { "integer", required = true },
+		end_char = { "integer", required = true },
+
+		unique = { "note_id", "anchor_id" },
+	})
+
+	db:create("links", {
+		context = { "text", required = true },
+		link_id = { "integer", primary = true, autoincrement = true },
+		note_id = { "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
+		target_anchor = "text",
+		target_note = "text",
+
+		start_line = { "integer", required = true },
+		start_char = { "integer", required = true },
+		end_line = { "integer", required = true },
+		end_char = { "integer", required = true },
+	})
+
+	db:create("tasks", {
+		content = { "text", required = true },
+		id = { "integer", primary = true, autoincrement = true },
+		line = { "integer", required = true },
+		note_id = { "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
+		status = { "integer", default = 0 },
+	})
+end
+
 -------------------------------------------------------------------------------
 --- Notebooks
 -------------------------------------------------------------------------------
 
+---------------------------------------
+--- Internal
+---------------------------------------
+
 local function close_active()
-	active:close()
-	active = nil
-	active_title = nil
+	if active then
+		active:close()
+		active = nil
+		active_id = nil
+		active_title = nil
+	end
 end
+
+local function open_notebook(nb)
+	close_active()
+
+	active = sqlite:open(nb.db_path, {
+		pragma = { foreign_keys = "ON" },
+	})
+	if not active then
+		Notify.error("unable to open notebook db at: " .. nb.db_path)
+	end
+
+	bootstrap_notebook(active)
+	active_id = nb.id
+	active_title = nb.title
+end
+
+---------------------------------------
+--- Utility
+---------------------------------------
 
 --- Returns the active notebook title, if one is active. Can be used in
 --- statuslines.
@@ -52,6 +139,25 @@ end
 function M.get_active_notebook()
 	return active and active_title or nil
 end
+
+--- Provides a callback for swapping notebooks based on current file path.
+function M.on_buf_enter()
+	local curr_path = vim.api.nvim_buf_get_name(0)
+	if curr_path == "" or curr_path:match("term://") then
+		return
+	end
+
+	local nb = M.get_notebook_for_path(curr_path)
+	if nb then
+		M.switch_to_notebook(nb.id)
+	elseif active then
+		close_active()
+	end
+end
+
+---------------------------------------
+--- Operations
+---------------------------------------
 
 --- Find which notebook owns the current file
 ---
@@ -76,21 +182,6 @@ function M.get_notebook_for_path(path)
 	end
 
 	return best_match
-end
-
---- Provides a callback for swapping notebooks based on current file path.
-function M.on_buf_enter()
-	local curr_path = vim.api.nvim_buf_get_name(0)
-	if curr_path == "" or curr_path:match("term://") then
-		return
-	end
-
-	local nb = M.get_notebook_for_path(curr_path)
-	if nb then
-		M.switch_to_notebook(nb.id)
-	elseif active then
-		close_active()
-	end
 end
 
 --- Registers a new directory as a notebook.
@@ -121,7 +212,7 @@ function M.register_notebook(path, title)
 		db_path = base_path .. "(" .. count .. ").sqlite"
 	end
 
-	local success, _ = registry:insert("notebooks", {
+	local success, id = registry:insert("notebooks", {
 		active = 1,
 		db_path = db_path,
 		path = path,
@@ -133,28 +224,15 @@ function M.register_notebook(path, title)
 		return
 	end
 
-	if active then
-		close_active()
-	end
-
-	active = sqlite:open(db_path)
-	if not active then
-		Notify.error("unable to open new notebook")
-	end
-
-	active_title = title
+	open_notebook({ db_path = db_path, id = id, title = title })
 end
 
 --- Switches the active notebook to the specified notebook.
 ---
 --- @param id integer # The notebook id
 function M.switch_to_notebook(id)
-	if not registry then
+	if not registry or active_id == id then
 		return
-	end
-
-	if active then
-		close_active()
 	end
 
 	--- @type BookwyrmBook
@@ -167,14 +245,7 @@ function M.switch_to_notebook(id)
 		return
 	end
 
-	local nb = rows[1]
-
-	active = sqlite:open(nb.db_path)
-	if not active then
-		Notify.error("unable to open notebook db at: " .. nb.db_path)
-	end
-
-	active_title = nb.title
+	open_notebook(rows[1])
 end
 
 return M
