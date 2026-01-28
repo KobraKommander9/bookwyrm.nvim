@@ -26,8 +26,9 @@
 --- @field target_note string? # Title of target note
 
 --- @class BookwyrmTag
---- @field tag string # Tag
+--- @field loc Range? # The location of the tag, if not in metadata
 --- @field note_id integer # ID of aliased note
+--- @field tag string # Tag
 
 --- @class BookwyrmTask
 --- @field content string # Task content

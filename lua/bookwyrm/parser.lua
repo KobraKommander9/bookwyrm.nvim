@@ -41,10 +41,11 @@ local function parse_metadata(lines, data)
 end
 
 --- Parses anchors from the given buffer's lines and appends them to the
---- data. Anchors can be of 3 main formats:
----   - Multiline range: \[#start:anchor-id\] ... \[#end:anchor-id\]
----   - Span: \[Content\]{#anchor-id}
----   - Block: {#anchor-id}
+--- data. Anchors can be of 3 main formats, with the ids consisting of
+--- alphanumeric, hyphen, or undescore characters:
+---   - Multiline range: \[^start:anchor-id\] ... \[^end:anchor-id\]
+---   - Span: \[Content\]^anchor-id
+---   - Block: ^anchor-id
 ---
 --- Note: block anchors will anchor the text from the start of the paragraph,
 ---   or line if not found, up until the anchor itself.
@@ -58,7 +59,7 @@ local function parse_anchors(bufnr, lines, data)
 	for i, line in ipairs(lines) do
 		local row = i - 1
 
-		for start_col, id, end_col in line:gmatch("()%[#start:([%w%-_]+)%]()") do
+		for start_col, id, end_col in line:gmatch("()%[%^start:([%w%-_]+)%]()") do
 			active_starts[id] = {
 				row = row,
 				col = start_col - 1,
@@ -66,7 +67,7 @@ local function parse_anchors(bufnr, lines, data)
 			}
 		end
 
-		for start_col, id, end_col in line:gmatch("()%[#end:([%w%-_]+)%]()") do
+		for start_col, id, end_col in line:gmatch("()%[%^end:([%w%-_]+)%]()") do
 			local start_data = active_starts[id]
 			if start_data then
 				local lines_content =
@@ -90,16 +91,16 @@ local function parse_anchors(bufnr, lines, data)
 		local row = i - 1
 
 		-- mask extracted range anchors
-		local temp_line = line:gsub("%[#start:[%w%-_]+%]", function(m)
+		local temp_line = line:gsub("%[%^start:[%w%-_]+%]", function(m)
 			return string.rep(" ", #m)
 		end)
 
-		temp_line = temp_line:gsub("%[#end:[%w%-_]+%]", function(m)
+		temp_line = temp_line:gsub("%[%^end:[%w%-_]+%]", function(m)
 			return string.rep(" ", #m)
 		end)
 
-		-- basic span: [...]{#id}
-		temp_line = temp_line:gsub("()(%b[])%s*{#([%w%-_]+)}()", function(start_col, content, id, end_col)
+		-- basic span: [...]^id
+		temp_line = temp_line:gsub("()(%b[])%^([%w%-_]+)()", function(start_col, content, id, end_col)
 			table.insert(data.anchors, {
 				anchor_id = id,
 				content = content:sub(2, -2), -- strip [ and ]
@@ -114,7 +115,7 @@ local function parse_anchors(bufnr, lines, data)
 		end)
 
 		-- block anchor: <beginning of block>^id
-		for start_col, id, end_col in temp_line:gmatch("(){#([%w%-_]+)}()") do
+		for start_col, id, end_col in temp_line:gmatch("()%s%^([%w%-_]+)()") do
 			local final_start = { line = row, character = 0 }
 			local block_text = temp_line:sub(1, start_col - 1)
 
