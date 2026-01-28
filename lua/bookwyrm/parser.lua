@@ -1,6 +1,46 @@
 local M = {}
 
---- This parses anchors from the given buffer's lines and appends them to the
+--- Parses metadata from the top of the note.
+---
+--- @param lines string[] # The buffer lines
+--- @param data BookwyrmNote # The note to populate
+local function parse_metadata(lines, data)
+	if lines[1] ~= "---" then
+		return
+	end
+
+	for i = 2, #lines do
+		local line = lines[i]
+		if line == "---" then
+			break
+		end
+
+		local title = line:match("^title:%s*(.+)$")
+		if title then
+			data.title = vim.trim(title):gsub("^([\"'])(.*)%1$", "%2")
+		end
+
+		local aliases = line:match("^alias:%s*%[?(.+)%]?(.*)$") or line:match("^aliases:%s*%[?(.+)%]?(.*)$")
+		if aliases then
+			for a in aliases:gmatch("([^,]+)") do
+				table.insert(data.aliases, {
+					alias = vim.trim(a):gsub("^([\"'])(.*)%1$", "%2"),
+				})
+			end
+		end
+
+		local tags = line:match("^tags:%s*%[?(.+)%]?(.*)$")
+		if tags then
+			for t in tags:gmatch("([^,]+)") do
+				table.insert(data.tags, {
+					tag = vim.trim(t):gsub("^#", ""),
+				})
+			end
+		end
+	end
+end
+
+--- Parses anchors from the given buffer's lines and appends them to the
 --- data. Anchors can be of 3 main formats:
 ---   - Multiline range: \[#start:anchor-id\] ... \[#end:anchor-id\]
 ---   - Span: \[Content\]{#anchor-id}
@@ -11,7 +51,7 @@ local M = {}
 ---
 --- @param bufnr integer # The buffer number
 --- @param lines string[] # The buffer lines
---- @param data BookwyrmNote # The note
+--- @param data BookwyrmNote # The note to populate
 local function parse_anchors(bufnr, lines, data)
 	local active_starts = {}
 
@@ -118,7 +158,7 @@ local function parse_anchors(bufnr, lines, data)
 	end
 end
 
---- This parses links from the given lines and appends them to the data.
+--- Parses links from the given lines and appends them to the data.
 --- Links are expected to be of the form \[\[Note#Anchor|Alias\]\], where
 --- each part is optional.
 ---
@@ -155,7 +195,7 @@ local function parse_links(lines, data)
 	end
 end
 
---- This parses the buffer to produce a BookwyrmNote artifact.
+--- Parses the buffer to produce a BookwyrmNote artifact.
 ---
 --- @param bufnr integer # The buffer number of the buffer being parsed
 --- @return BookwyrmNote?
@@ -174,6 +214,7 @@ function M.parse_buffer(bufnr)
 		title = vim.fn.fnamemodify(path, ":t:r"),
 	}
 
+	parse_metadata(lines, data)
 	parse_anchors(bufnr, lines, data)
 	parse_links(lines, data)
 
