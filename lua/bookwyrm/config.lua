@@ -1,7 +1,6 @@
 local M = {}
 
 local defaults = {
-	autocmds = true,
 	data_path = vim.fn.stdpath("data") .. "/bookwyrm",
 	db_name = "bookwyrm.sqlite",
 }
@@ -16,14 +15,6 @@ setmetatable(M, {
 		return options[key]
 	end,
 })
-
-local function setup_autocmds()
-	local group = vim.api.nvim_create_augroup("Bookwyrm", { clear = true })
-	vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
-		group = group,
-		callback = require("bookwyrm.db").on_buf_enter,
-	})
-end
 
 function M.setup(opts)
 	options = vim.tbl_deep_extend("force", defaults, opts or {})
@@ -47,10 +38,6 @@ function M.setup(opts)
 	end
 
 	db.init_registry(options.registry_path)
-
-	if options.autocmds then
-		setup_autocmds()
-	end
 end
 
 return M

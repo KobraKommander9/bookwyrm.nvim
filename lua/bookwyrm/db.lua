@@ -192,48 +192,43 @@ function M.get_active_notebook()
 	return active and active_title or nil
 end
 
---- Provides a callback for swapping notebooks based on current file path.
-function M.on_buf_enter()
-	local curr_path = vim.api.nvim_buf_get_name(0)
-	if curr_path == "" or curr_path:match("term://") then
-		return
-	end
-
-	local nb = M.get_notebook_for_path(curr_path)
-	if nb then
-		M.switch_to_notebook(nb.id)
-	elseif active then
-		close_active()
-	end
-end
-
 ---------------------------------------
 --- Operations
 ---------------------------------------
 
---- Find which notebook owns the current file
+--- Deletes the notebook from the registry. This does not affect the filesystem.
 ---
---- @param path string # The file path
---- @return BookwyrmBook?
-function M.get_notebook_for_path(path)
+--- @param id integer # The noteboook id
+function M.delete_notebook(id)
 	if not registry then
-		return nil
+		return
 	end
 
-	local rows = registry:select("notebooks", { where = { active = 1 } })
-	local best_match = nil
-	local longest_path = -1
-
-	for _, nb in ipairs(rows) do
-		if vim.startswith(path, nb.path) then
-			if #nb.path > longest_path then
-				longest_path = #nb.path
-				best_match = nb
-			end
-		end
+	if active and active_id == id then
+		close_active()
 	end
 
-	return best_match
+	local status, result = pcall(function()
+		local rows = registry:select("notebooks", { where = { id = id } })
+		assert(rows and #rows > 0, "could not find notebook")
+
+		--- @diagnostic disable-next-line assign-type-mismatch
+		assert(registry:delete("notebooks", { id = id }))
+
+		return rows[1]
+	end)
+
+	if not status then
+		Notify.error("could not delete: " .. tostring(result))
+		return
+	end
+
+	local success, err = os.remove(result.db_path)
+	if not success then
+		Notify.warn("registry cleaned but could not delete file (" .. result.db_path .. ") for: " .. tostring(err))
+	else
+		Notify.info("successfully deleted notebook")
+	end
 end
 
 --- Returns all registered notebooks.
