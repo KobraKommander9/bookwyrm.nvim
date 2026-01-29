@@ -3,7 +3,11 @@ if vim.g.loaded_bookwyrm then
 end
 vim.g.loaded_bookwyrm = true
 
-vim.api.nvim_create_user_command("BookwyrmRegister", function()
+vim.api.nvim_create_user_command("BookwyrmNotebookDelete", function()
+	require("bookwyrm").api.delete_notebook()
+end, { desc = "Delete active Bookwyrm notebook" })
+
+vim.api.nvim_create_user_command("BookwyrmNotebookRegister", function()
 	local path = vim.fn.getcwd()
 
 	vim.ui.input({

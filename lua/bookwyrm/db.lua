@@ -198,9 +198,14 @@ end
 
 --- Deletes the notebook from the registry. This does not affect the filesystem.
 ---
---- @param id integer # The noteboook id
+--- @param id integer? # The noteboook id, or active if not present
 function M.delete_notebook(id)
 	if not registry then
+		return
+	end
+
+	id = id or active_id
+	if not id then
 		return
 	end
 
@@ -226,8 +231,6 @@ function M.delete_notebook(id)
 	local success, err = os.remove(result.db_path)
 	if not success then
 		Notify.warn("registry cleaned but could not delete file (" .. result.db_path .. ") for: " .. tostring(err))
-	else
-		Notify.info("successfully deleted notebook")
 	end
 end
 

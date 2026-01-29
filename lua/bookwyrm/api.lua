@@ -11,7 +11,7 @@ local Notify = require("bookwyrm.notify")
 --- Deletes the notebook. This just removes the notebook from the registry,
 --- does not affect the filesystem.
 ---
---- @param id integer # The id of the notebook to delete.
+--- @param id integer? # The id of the notebook to delete (defaults to active).
 function M.delete_notebook(id)
 	if not DB then
 		Notify.warn("DB not registered")
