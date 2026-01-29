@@ -1,6 +1,8 @@
 local M = {}
 
 local DB = require("bookwyrm.db")
+local Paths = require("bookwyrm.paths")
+local Notify = require("bookwyrm.notify")
 
 -------------------------------------------------------------------------------
 --- Notebooks
@@ -15,6 +17,30 @@ function M.get_notebook_list()
 	end
 
 	return DB.get_notebooks()
+end
+
+--- @class Bookwyrm.api.RegisterOpts
+--- @field path string? # The absolute path to the notebook directory (defaults to CWD)
+--- @field title string? # Friendly name for the notebook (defaults to folder name)
+--- @field auto_scan boolean? # Whether to scan files immediately after registration (defaults to true)
+--- @field silent boolean? # If true will silence notifications (defaults to false)
+
+--- Registers a new notebook.
+---
+--- @param opts Bookwyrm.api.RegisterOpts # Registration opts
+function M.register_notebook(opts)
+	opts = opts or {}
+
+	if not DB then
+		Notify.warn("DB not registered", opts.silent)
+		return
+	end
+
+	local path = Paths.normalize(opts.path or vim.fn.getcwd())
+	local title = opts.title and (opts.title ~= "" and opts.title) or vim.fn.fnamemodify(path, ":t")
+
+	DB.register_notebook(path, title)
+	Notify.info("Notebook registered: " .. title, opts.silent)
 end
 
 --- Selects a notebook and makes it active.
