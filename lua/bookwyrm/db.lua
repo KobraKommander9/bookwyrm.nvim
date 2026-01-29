@@ -12,14 +12,23 @@ if not has_sqlite then
 	return nil
 end
 
+---------------------------------------
+--- State
+---------------------------------------
+
 --- @type sqlite_db
 local registry = nil
+
 --- @type sqlite_db?
 local active = nil
+
 --- @type integer?
 local active_id = nil
+
 --- @type string?
 local active_title = nil
+
+local save_cache = {}
 
 -------------------------------------------------------------------------------
 --- Init
@@ -112,7 +121,12 @@ local function close_active()
 		active = nil
 		active_id = nil
 		active_title = nil
+		save_cache = {}
 	end
+end
+
+local function is_markdown(bufnr)
+	return vim.bo[bufnr].filetype == "markdown"
 end
 
 local function open_notebook(nb)
@@ -257,49 +271,41 @@ end
 --- Notebooks
 -------------------------------------------------------------------------------
 
+--- Forces a save by clearing the cache for the given path.
+---
+--- @param path string? # The path to the file to save, or current buffer
+function M.force_sync(path)
+	path = path or vim.api.nvim_buf_get_name(0)
+	save_cache[path] = nil
+	M.save_note(path)
+	Notify.info("forced sync for: " .. vim.fn.fnamemodify(path, ":t"))
+end
+
 --- Saves the note
 ---
----@param path string # Path to buffer
+---@param path string? # Path to buffer, or current buffer
 function M.save_note(path)
 	if not active then
 		return
 	end
 
+	path = path or vim.api.nvim_buf_get_name(0)
+
 	local bufnr = vim.fn.bufnr(path)
+	if bufnr == -1 or not is_markdown(bufnr) then
+		return
+	end
+
+	local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+	if save_cache[path] == tick then
+		return
+	end
+
 	local note = require("bookwyrm.parser").parse_buffer(bufnr)
-
-	if not active:eval("BEGIN TRANSACTION;") then
-		Notify.error("failed to save note")
-		return
-	end
-
-	local rows = active:eval(
-		[[
-      INSERT INTO notes (path, title) VALUES (:path, :title)
-      ON CONFLICT(path) DO UPDATE SET title = excluded.title
-      RETURNING id
-    ]],
-		{ path = note.path, title = note.title }
-	)
-
-	if not rows or #rows < 1 then
-		active:eval("ROLLBACK;")
-		Notify.error("failed to save note")
-		return
-	end
-
-	local note_id = rows[1].id
-	local ok = true
-
-	ok = ok and active:delete("aliases", { note_id = note_id })
-	ok = ok and active:delete("anchors", { note_id = note_id })
-	ok = ok and active:delete("links", { note_id = note_id })
-	ok = ok and active:delete("tags", { note_id = note_id })
-	ok = ok and active:delete("tasks", { note_id = note_id })
 
 	local function batch_insert(table_name, items, mapper)
 		if #items == 0 then
-			return true
+			return
 		end
 
 		local data = {}
@@ -307,16 +313,40 @@ function M.save_note(path)
 			table.insert(data, mapper(item))
 		end
 
-		local res = active:insert(table_name, data)
-		return res ~= nil or res == true
+		if not active:insert(table_name, data) then
+			error("batch insert failed for " .. table_name)
+		end
 	end
 
-	ok = ok and batch_insert("aliases", note.aliases, function(a)
-		return { note_id = note_id, alias = a.alias }
-	end)
+	local status, err = pcall(function()
+		assert(active:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
 
-	ok = ok
-		and batch_insert("anchors", note.anchors, function(a)
+		local rows = active:eval(
+			[[
+      INSERT INTO notes (path, title) VALUES (:path, :title)
+      ON CONFLICT(path) DO UPDATE SET title = excluded.title
+      RETURNING id
+    ]],
+			{ path = note.path, title = note.title }
+		)
+
+		if not rows or #rows < 1 then
+			error("note upsert failed")
+		end
+
+		local note_id = rows[1].id
+
+		assert(active:delete("aliases", { note_id = note_id }), "failed to delete aliases")
+		assert(active:delete("anchors", { note_id = note_id }), "failed to delete anchors")
+		assert(active:delete("links", { note_id = note_id }), "failed to delete links")
+		assert(active:delete("tags", { note_id = note_id }), "failed to delete tags")
+		assert(active:delete("tasks", { note_id = note_id }), "failed to delete tasks")
+
+		batch_insert("aliases", note.aliases, function(a)
+			return { note_id = note_id, alias = a.alias }
+		end)
+
+		batch_insert("anchors", note.anchors, function(a)
 			return {
 				note_id = note_id,
 				anchor_id = a.anchor_id,
@@ -328,8 +358,7 @@ function M.save_note(path)
 			}
 		end)
 
-	ok = ok
-		and batch_insert("links", note.links, function(l)
+		batch_insert("links", note.links, function(l)
 			return {
 				note_id = note_id,
 				target_note = l.target_note,
@@ -342,12 +371,11 @@ function M.save_note(path)
 			}
 		end)
 
-	ok = ok and batch_insert("tags", note.tags, function(t)
-		return { note_id = note_id, tag = t.tag }
-	end)
+		batch_insert("tags", note.tags, function(t)
+			return { note_id = note_id, tag = t.tag }
+		end)
 
-	ok = ok
-		and batch_insert("tasks", note.tasks, function(t)
+		batch_insert("tasks", note.tasks, function(t)
 			return {
 				note_id = note_id,
 				line = t.line,
@@ -356,14 +384,16 @@ function M.save_note(path)
 			}
 		end)
 
-	if ok then
-		if not active:eval("COMMIT;") then
+		assert(active:eval("COMMIT;"), "failed to commit")
+		save_cache[path] = tick
+	end)
+
+	if not status then
+		if active then
 			active:eval("ROLLBACK;")
-			Notify.error("failed to save note")
 		end
-	else
-		active:eval("ROLLBACK;")
-		Notify.error("failed to save note")
+
+		Notify.error("critical save error: " .. tostring(err))
 	end
 end
 
