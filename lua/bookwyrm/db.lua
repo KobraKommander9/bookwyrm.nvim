@@ -39,12 +39,19 @@ local save_cache = {}
 --- @param path string # The path to the registry db
 function M.init_registry(path)
 	registry = sqlite:open(path)
+	if not registry then
+		Notify.error("registry is locked or inaccessible!")
+	end
+
 	registry:create("notebooks", {
 		active = { type = "integer", required = true },
 		db_path = { type = "text", unique = true, required = true },
 		id = { type = "integer", primary = true, autoincrement = true },
 		path = { type = "text", unique = true, required = true },
 		title = { type = "text", required = true },
+
+		--- @diagnostic disable-next-line: assign-type-mismatch
+		ensure = true,
 	})
 end
 
@@ -52,59 +59,80 @@ end
 ---
 --- @param db sqlite_db # The notebook db
 local function bootstrap_notebook(db)
-	db:create("notes", {
-		id = { type = "integer", primary = true, autoincrement = true },
-		path = { type = "text", unique = true, required = true },
-		title = { type = "text", required = true },
-	})
+	db:eval("PRAGMA foreign_keys = ON;")
 
-	db:create("tags", {
-		note_id = { type = "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
-		tag = { type = "text", required = true },
+	local schemas = {
+		[[
+      CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT UNIQUE NOT NULL,
+        title TEXT NOT NULL
+      );
+    ]],
+		[[
+      CREATE TABLE IF NOT EXISTS tags (
+        note_id INTEGER NOT NULL,
+        tag TEXT NOT NULL,
+        PRIMARY KEY (note_id, tag),
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+    ]],
+		[[
+      CREATE TABLE IF NOT EXISTS aliases (
+        note_id INTEGER NOT NULL,
+        alias TEXT NOT NULL,
+        PRIMARY KEY (note_id, alias),
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+    ]],
+		[[
+      CREATE TABLE IF NOT EXISTS anchors (
+        note_id INTEGER NOT NULL,
+        anchor_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        start_char INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        end_char INTEGER NOT NULL,
+        PRIMARY KEY (note_id, anchor_id),
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+    ]],
+		[[
+      CREATE TABLE IF NOT EXISTS links (
+        link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        note_id INTEGER NOT NULL,
+        target_note TEXT,
+        target_anchor TEXT,
+        context TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        start_char INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        end_char INTEGER NOT NULL,
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+    ]],
+		[[
+      CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        note_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        line INTEGER NOT NULL,
+        status INTEGER DEFAULT 0,
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+    ]],
+	}
 
-		unique = { "note_id", "tag" },
-	})
+	for _, sql in ipairs(schemas) do
+		local ok, err = pcall(function()
+			db:eval(sql)
+		end)
 
-	db:create("aliases", {
-		alias = { type = "text", required = true },
-		note_id = { type = "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
-
-		unique = { "note_id", "alias" },
-	})
-
-	db:create("anchors", {
-		anchor_id = { type = "text", required = true },
-		content = { type = "text", required = true },
-		note_id = { type = "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
-
-		start_line = { type = "integer", required = true },
-		start_char = { type = "integer", required = true },
-		end_line = { type = "integer", required = true },
-		end_char = { type = "integer", required = true },
-
-		unique = { "note_id", "anchor_id" },
-	})
-
-	db:create("links", {
-		context = { type = "text", required = true },
-		link_id = { type = "integer", primary = true, autoincrement = true },
-		note_id = { type = "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
-		target_anchor = { type = "text" },
-		target_note = { type = "text" },
-
-		start_line = { type = "integer", required = true },
-		start_char = { type = "integer", required = true },
-		end_line = { type = "integer", required = true },
-		end_char = { type = "integer", required = true },
-	})
-
-	db:create("tasks", {
-		content = { type = "text", required = true },
-		id = { type = "integer", primary = true, autoincrement = true },
-		line = { type = "integer", required = true },
-		note_id = { type = "integer", required = true, reference = "notes(id)", on_delete = "cascade" },
-		status = { type = "integer", default = "0" },
-	})
+		if not ok then
+			error("SQL Bootstrap Error: " .. tostring(err) .. "\nStatement: " .. sql)
+		end
+	end
 end
 
 -------------------------------------------------------------------------------
@@ -132,17 +160,22 @@ end
 local function open_notebook(nb)
 	close_active()
 
-	active = sqlite:open(nb.db_path, {
-		pragma = {
-			foreign_keys = "ON",
-			journal_mode = "WAL",
-		},
-	})
+	active = sqlite:open(nb.db_path)
 	if not active then
 		Notify.error("unable to open notebook db at: " .. nb.db_path)
 	end
 
-	bootstrap_notebook(active)
+	local status, err = pcall(function()
+		bootstrap_notebook(active)
+	end)
+
+	if not status then
+		close_active()
+
+		Notify.error("bootstrap failed: " .. tostring(err))
+		return
+	end
+
 	active_id = nb.id
 	active_title = nb.title
 end
@@ -219,7 +252,8 @@ end
 ---
 --- @param path string # Absolute path to the notebook
 --- @param title string # User-friendly title
-function M.register_notebook(path, title)
+--- @param silent boolean? # If it should be silent
+function M.register_notebook(path, title, silent)
 	if not registry then
 		return
 	end
@@ -228,7 +262,7 @@ function M.register_notebook(path, title)
 	Paths.ensure_dir(path)
 
 	if vim.fn.isdirectory(path) == 0 then
-		Notify.error("path is not a valid directory: " .. path)
+		Notify.error("path is not a valid directory: " .. path, silent)
 		return
 	end
 
@@ -238,8 +272,12 @@ function M.register_notebook(path, title)
 	local count = 0
 	local base_path = db_path
 
-	while vim.fn.filereadable(db_path) do
+	while not vim.fn.filereadable(db_path) do
 		count = count + 1
+		if count >= 10 then
+			break
+		end
+
 		db_path = base_path .. "(" .. count .. ").sqlite"
 	end
 
@@ -251,11 +289,12 @@ function M.register_notebook(path, title)
 	})
 
 	if not success then
-		Notify.error("failed to register notebook")
+		Notify.error("failed to register notebook", silent)
 		return
 	end
 
 	open_notebook({ db_path = db_path, id = id, title = title })
+	Notify.info("Notebook registered: " .. title, silent)
 end
 
 --- Switches the active notebook to the specified notebook.

@@ -39,8 +39,7 @@ function M.register_notebook(opts)
 	local path = Paths.normalize(opts.path or vim.fn.getcwd())
 	local title = opts.title and (opts.title ~= "" and opts.title) or vim.fn.fnamemodify(path, ":t")
 
-	DB.register_notebook(path, title)
-	Notify.info("Notebook registered: " .. title, opts.silent)
+	DB.register_notebook(path, title, opts.silent)
 end
 
 --- Selects a notebook and makes it active.
