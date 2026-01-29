@@ -21,6 +21,15 @@ function M.delete_notebook(id)
 	DB.delete_notebook(id)
 end
 
+--- Returns the active notebook title, if any.
+function M.get_active_title()
+	if not DB then
+		return nil
+	end
+
+	return DB.get_active_title()
+end
+
 --- Returns all the registered notebooks.
 ---
 --- @return BookwyrmBook[]
@@ -30,6 +39,15 @@ function M.get_notebook_list()
 	end
 
 	return DB.get_notebooks()
+end
+
+--- Loads the default notebook.
+function M.load_default_notebook()
+	if not DB then
+		return
+	end
+
+	DB.load_active_notebook()
 end
 
 --- @class Bookwyrm.api.RegisterOpts
@@ -77,6 +95,17 @@ function M.select_notebook(id)
 	end
 
 	DB.switch_to_notebook(id)
+end
+
+--- Selects a notebook and makes it active.
+---
+--- @param id integer? # The id of the notebook, defaults to active
+function M.set_default_notebook(id)
+	if not DB then
+		return
+	end
+
+	DB.set_default_notebook(id)
 end
 
 return M

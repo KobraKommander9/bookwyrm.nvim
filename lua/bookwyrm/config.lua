@@ -3,6 +3,7 @@ local M = {}
 local defaults = {
 	data_path = vim.fn.stdpath("data") .. "/bookwyrm",
 	db_name = "bookwyrm.sqlite",
+	recreate_registry = false,
 }
 
 local options
@@ -37,7 +38,13 @@ function M.setup(opts)
 		return
 	end
 
-	db.init_registry(options.registry_path)
+	if not opts.recreate_registry then
+		db.init_registry(options.registry_path)
+	else
+		db.migrate_registry(options.registry_path)
+	end
+
+	db.load_active_notebook()
 end
 
 return M

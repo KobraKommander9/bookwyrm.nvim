@@ -32,3 +32,7 @@ vim.api.nvim_create_user_command("BookwyrmNotebookRename", function()
 		end
 	end)
 end, { desc = "Delete active Bookwyrm notebook" })
+
+vim.api.nvim_create_user_command("BookwyrmNotebookSetDefault", function()
+	require("bookwyrm").api.set_default_notebook()
+end, { desc = "Sets active notebook as default" })

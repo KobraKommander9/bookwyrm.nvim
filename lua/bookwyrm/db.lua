@@ -16,7 +16,7 @@ end
 --- State
 ---------------------------------------
 
---- @type sqlite_db
+--- @type sqlite_db?
 local registry = nil
 
 --- @type sqlite_db?
@@ -30,6 +30,29 @@ local active_title = nil
 
 local save_cache = {}
 
+---------------------------------------
+--- Utility
+---------------------------------------
+
+--- @param db sqlite_db
+--- @param table_name string
+--- @param items table[]
+--- @param mapper function
+local function batch_insert(db, table_name, items, mapper)
+	if #items == 0 then
+		return
+	end
+
+	local data = {}
+	for _, item in ipairs(items) do
+		table.insert(data, mapper(item))
+	end
+
+	if not db:insert(table_name, data) then
+		error("batch insert failed for " .. table_name)
+	end
+end
+
 -------------------------------------------------------------------------------
 --- Init
 -------------------------------------------------------------------------------
@@ -41,18 +64,52 @@ function M.init_registry(path)
 	registry = sqlite:open(path)
 	if not registry then
 		Notify.error("registry is locked or inaccessible!")
+		return
 	end
 
 	registry:create("notebooks", {
 		active = { type = "integer", required = true },
 		db_path = { type = "text", unique = true, required = true },
 		id = { type = "integer", primary = true, autoincrement = true },
+		is_default = { type = "integer", default = "0" },
 		path = { type = "text", unique = true, required = true },
 		title = { type = "text", required = true },
 
 		--- @diagnostic disable-next-line: assign-type-mismatch
 		ensure = true,
 	})
+end
+
+function M.migrate_registry(path)
+	if not registry then
+		return
+	end
+
+	local old_notebooks = M.get_notebooks()
+
+	registry:close()
+	registry = nil
+
+	local success, err = os.remove(path)
+	if not success and vim.fn.filereadable(path) == 1 then
+		Notify.error("registry migration failed: " .. tostring(err))
+		return
+	end
+
+	M.init_registry(path)
+
+	success, err = pcall(batch_insert, registry, "notebooks", old_notebooks, function(nb)
+		return {
+			active = nb.active,
+			db_path = nb.db_path,
+			is_default = nb.is_default or 0,
+			path = nb.path,
+			title = nb.title,
+		}
+	end)
+	if not success then
+		Notify.error("failed to reregister old notebooks: " .. tostring(err))
+	end
 end
 
 --- Bootstraps the notebook db with the correct schemas.
@@ -188,8 +245,20 @@ end
 --- statuslines.
 ---
 --- @return string?
-function M.get_active_notebook()
+function M.get_active_title()
 	return active and active_title or nil
+end
+
+--- Loads the default active notebook.
+function M.load_active_notebook()
+	if not registry then
+		return
+	end
+
+	local rows = registry:select("notebooks", { where = { is_default = 1 } })
+	if rows and #rows > 0 then
+		M.switch_to_notebook(rows[1].id)
+	end
 end
 
 ---------------------------------------
@@ -320,6 +389,33 @@ function M.rename_notebook(title, id)
 	end
 end
 
+--- Sets the default notebook. This will be the active notebook when
+--- first opening neovim.
+---
+--- @param id integer? # The id of the notebook, defaults to active
+function M.set_default_notebook(id)
+	if not registry then
+		return
+	end
+
+	id = id or active_id
+	if not id then
+		Notify.warn("no notebook specified")
+	end
+
+	local status, err = pcall(function()
+		assert(registry:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
+		assert(registry:eval("UPDATE notebooks SET is_default = 0 WHERE is_default = 1;"))
+		assert(registry:eval("UPDATE notebooks SET is_default = 1 WHERE id = :id;", { id = id }))
+		assert(registry:eval("COMMIT;"), "failed to commit transaction")
+	end)
+
+	if not status then
+		registry:eval("ROLLBACK;")
+		Notify.error("could not set default notebook: " .. tostring(err))
+	end
+end
+
 --- Switches the active notebook to the specified notebook.
 ---
 --- @param id integer # The notebook id
@@ -377,21 +473,6 @@ function M.save_note(path)
 
 	local note = require("bookwyrm.parser").parse_buffer(bufnr)
 
-	local function batch_insert(table_name, items, mapper)
-		if #items == 0 then
-			return
-		end
-
-		local data = {}
-		for _, item in ipairs(items) do
-			table.insert(data, mapper(item))
-		end
-
-		if not active:insert(table_name, data) then
-			error("batch insert failed for " .. table_name)
-		end
-	end
-
 	local status, err = pcall(function()
 		assert(active:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
 
@@ -416,11 +497,11 @@ function M.save_note(path)
 		assert(active:delete("tags", { note_id = note_id }), "failed to delete tags")
 		assert(active:delete("tasks", { note_id = note_id }), "failed to delete tasks")
 
-		batch_insert("aliases", note.aliases, function(a)
+		batch_insert(active, "aliases", note.aliases, function(a)
 			return { note_id = note_id, alias = a.alias }
 		end)
 
-		batch_insert("anchors", note.anchors, function(a)
+		batch_insert(active, "anchors", note.anchors, function(a)
 			return {
 				note_id = note_id,
 				anchor_id = a.anchor_id,
@@ -432,7 +513,7 @@ function M.save_note(path)
 			}
 		end)
 
-		batch_insert("links", note.links, function(l)
+		batch_insert(active, "links", note.links, function(l)
 			return {
 				note_id = note_id,
 				target_note = l.target_note,
@@ -445,11 +526,11 @@ function M.save_note(path)
 			}
 		end)
 
-		batch_insert("tags", note.tags, function(t)
+		batch_insert(active, "tags", note.tags, function(t)
 			return { note_id = note_id, tag = t.tag }
 		end)
 
-		batch_insert("tasks", note.tasks, function(t)
+		batch_insert(active, "tasks", note.tasks, function(t)
 			return {
 				note_id = note_id,
 				line = t.line,
