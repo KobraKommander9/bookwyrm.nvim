@@ -203,6 +203,18 @@ function M.get_notebook_for_path(path)
 	return best_match
 end
 
+--- Returns all registered notebooks.
+---
+--- @return BookwyrmBook[]
+function M.get_notebooks()
+	if not registry then
+		return {}
+	end
+
+	--- @diagnostic disable-next-line missing-parameter
+	return registry:select("notebooks")
+end
+
 --- Registers a new directory as a notebook.
 ---
 --- @param path string # Absolute path to the notebook
