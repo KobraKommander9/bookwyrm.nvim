@@ -14,20 +14,21 @@ local Notify = require("bookwyrm.notify")
 --- @param id integer? # The id of the notebook to delete (defaults to active).
 function M.delete_notebook(id)
 	if not DB then
-		Notify.warn("DB not registered")
 		return
 	end
 
 	DB.delete_notebook(id)
 end
 
---- Returns the active notebook title, if any.
-function M.get_active_title()
+--- Returns the active notebook, if any.
+---
+--- @return BookwyrmBook?
+function M.get_active_notebook()
 	if not DB then
 		return nil
 	end
 
-	return DB.get_active_title()
+	return DB.get_active_notebook()
 end
 
 --- Returns all the registered notebooks.
@@ -63,7 +64,6 @@ function M.register_notebook(opts)
 	opts = opts or {}
 
 	if not DB then
-		Notify.warn("DB not registered", opts.silent)
 		return
 	end
 
@@ -79,7 +79,6 @@ end
 --- @param id integer? # The id of the notebook (defaults to active)
 function M.rename_notebook(title, id)
 	if not DB then
-		Notify.warn("DB not registered")
 		return
 	end
 
@@ -106,6 +105,32 @@ function M.set_default_notebook(id)
 	end
 
 	DB.set_default_notebook(id)
+end
+
+-------------------------------------------------------------------------------
+--- Notes
+-------------------------------------------------------------------------------
+
+--- Creates a new note file in the active notebook.
+---
+--- @param title string # the title of the new note
+function M.create_note(title)
+	if not DB then
+		return
+	end
+
+	DB.create_note(title)
+end
+
+--- Returns all notes for the active notebook.
+---
+--- @return BookwyrmNote[]
+function M.get_notes()
+	if not DB then
+		return {}
+	end
+
+	return DB.get_notes()
 end
 
 return M

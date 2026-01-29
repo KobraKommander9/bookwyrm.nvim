@@ -3,6 +3,10 @@ if vim.g.loaded_bookwyrm then
 end
 vim.g.loaded_bookwyrm = true
 
+-------------------------------------------------------------------------------
+--- Notebooks
+-------------------------------------------------------------------------------
+
 vim.api.nvim_create_user_command("BookwyrmNotebookDelete", function()
 	require("bookwyrm").api.delete_notebook()
 end, { desc = "Delete active Bookwyrm notebook" })
@@ -36,3 +40,17 @@ end, { desc = "Delete active Bookwyrm notebook" })
 vim.api.nvim_create_user_command("BookwyrmNotebookSetDefault", function()
 	require("bookwyrm").api.set_default_notebook()
 end, { desc = "Sets active notebook as default" })
+
+-------------------------------------------------------------------------------
+--- Notes
+-------------------------------------------------------------------------------
+
+vim.api.nvim_create_user_command("BookwyrmNoteCreate", function()
+	vim.ui.input({
+		prompt = "Enter Note Title: ",
+	}, function(title)
+		if title and title ~= "" then
+			require("bookwyrm").api.create_note(title)
+		end
+	end)
+end, { desc = "Create note in active notebook" })

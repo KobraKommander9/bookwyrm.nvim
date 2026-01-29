@@ -22,11 +22,8 @@ local registry = nil
 --- @type sqlite_db?
 local active = nil
 
---- @type integer?
-local active_id = nil
-
---- @type string?
-local active_title = nil
+--- @type BookwyrmBook?
+local active_nb = nil
 
 local save_cache = {}
 
@@ -204,8 +201,7 @@ local function close_active()
 	if active then
 		active:close()
 		active = nil
-		active_id = nil
-		active_title = nil
+		active_nb = nil
 		save_cache = {}
 	end
 end
@@ -233,8 +229,7 @@ local function open_notebook(nb)
 		return
 	end
 
-	active_id = nb.id
-	active_title = nb.title
+	active_nb = nb
 end
 
 ---------------------------------------
@@ -244,9 +239,9 @@ end
 --- Returns the active notebook title, if one is active. Can be used in
 --- statuslines.
 ---
---- @return string?
-function M.get_active_title()
-	return active and active_title or nil
+--- @return BookwyrmBook?
+function M.get_active_notebook()
+	return active and active_nb or nil
 end
 
 --- Loads the default active notebook.
@@ -273,12 +268,12 @@ function M.delete_notebook(id)
 		return
 	end
 
-	id = id or active_id
+	id = id or (active_nb and active_nb.id)
 	if not id then
 		return
 	end
 
-	if active and active_id == id then
+	if active_nb and active_nb.id == id then
 		close_active()
 	end
 
@@ -373,7 +368,7 @@ function M.rename_notebook(title, id)
 		return
 	end
 
-	id = id or active_id
+	id = id or (active_nb and active_nb.id)
 	if not id then
 		Notify.warn("no notebook to rename")
 		return
@@ -398,7 +393,7 @@ function M.set_default_notebook(id)
 		return
 	end
 
-	id = id or active_id
+	id = id or (active_nb and active_nb.id)
 	if not id then
 		Notify.warn("no notebook specified")
 	end
@@ -420,7 +415,7 @@ end
 ---
 --- @param id integer # The notebook id
 function M.switch_to_notebook(id)
-	if not registry or active_id == id then
+	if not registry or (active_nb and active_nb.id == id) then
 		return
 	end
 
@@ -441,6 +436,35 @@ end
 --- Notebooks
 -------------------------------------------------------------------------------
 
+--- Creates a new note file in the active notebook.
+---
+--- @param title string # the title of the new note
+function M.create_note(title)
+	if not active or not active_nb then
+		Notify.error("No active notebook to create note in.")
+		return
+	end
+
+	local slug = title:gsub("%s+", "-"):gsub("[^%w%-]", ""):lower()
+	local filename = slug .. ".md"
+
+	local full_path = Paths.normalize(active_nb.path .. "/" .. filename)
+	if vim.fn.filereadable(full_path) == 1 then
+		vim.cmd("edit " .. vim.fn.fnameescape(full_path))
+		return
+	end
+
+	local f = io.open(full_path, "w")
+	if f then
+		f:write("---\n")
+		f:write("title: " .. title .. "\n")
+		f:write("---\n\n")
+		f:close()
+	end
+
+	vim.cmd("edit " .. vim.fn.fnameescape(full_path))
+end
+
 --- Forces a save by clearing the cache for the given path.
 ---
 --- @param path string? # The path to the file to save, or current buffer
@@ -449,6 +473,18 @@ function M.force_sync(path)
 	save_cache[path] = nil
 	M.save_note(path)
 	Notify.info("forced sync for: " .. vim.fn.fnamemodify(path, ":t"))
+end
+
+--- Returns all notes for the active notebook.
+---
+--- @return BookwyrmNote[]
+function M.get_notes()
+	if not active then
+		return {}
+	end
+
+	--- @diagnostic disable-next-line missing-parameter
+	return active:select("notes")
 end
 
 --- Saves the note
