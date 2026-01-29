@@ -298,6 +298,35 @@ function M.delete_notebook(id)
 	end
 end
 
+--- Returns the notebook that owns the given path, if any.
+---
+--- @param path string # The path to check
+--- @return BookwyrmBook?
+function M.get_notebook_for_path(path)
+	if not registry then
+		return nil
+	end
+
+	local rows = registry:select("notebooks", { where = { active = 1 } })
+	if not rows or #rows == 0 then
+		return nil
+	end
+
+	local best_match = nil
+	local longest_path = -1
+
+	for _, nb in ipairs(rows) do
+		if vim.startswith(path, nb.path) then
+			if #nb.path > longest_path then
+				longest_path = #nb.path
+				best_match = nb
+			end
+		end
+	end
+
+	return best_match
+end
+
 --- Returns all registered notebooks.
 ---
 --- @return BookwyrmBook[]
@@ -435,6 +464,58 @@ end
 -------------------------------------------------------------------------------
 --- Notebooks
 -------------------------------------------------------------------------------
+
+---------------------------------------
+--- Utility
+---------------------------------------
+
+--- Checks if the saved file belongs in a notebook and will write it to the
+--- appropriate notebook.
+function M.on_save()
+	local path = vim.api.nvim_buf_get_name(0)
+	if path == "" or not is_markdown(0) then
+		return
+	end
+
+	local nb = M.get_notebook_for_path(path)
+	if not nb then
+		return
+	end
+
+	if not active_nb or active_nb.id ~= nb.id then
+		M.switch_to_notebook(nb.id)
+	end
+
+	M.save_note(path)
+end
+
+--- Resyncs the active notebook with the filesystem.
+function M.resync()
+	if not active then
+		return
+	end
+
+	--- @diagnostic disable-next-line missing-parameter
+	local rows = active:select("notes")
+	local deleted_count = 0
+
+	for _, note in ipairs(rows or {}) do
+		if vim.fn.filereadable(note.path) == 0 then
+			active:delete("notes", { id = note.id })
+			deleted_count = deleted_count + 1
+		end
+	end
+
+	M.scan_notebook()
+
+	if deleted_count > 0 then
+		Notify.info(string.format("Resync: Cleaned %d orphaned records.", deleted_count))
+	end
+end
+
+---------------------------------------
+--- Operations
+---------------------------------------
 
 --- Creates a new note file in the active notebook. Returns the created note if
 --- successful.
