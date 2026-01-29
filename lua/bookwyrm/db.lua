@@ -295,6 +295,31 @@ function M.register_notebook(path, title, silent)
 	Notify.info("Notebook registered: " .. title, silent)
 end
 
+--- Renames the notebook to the given title.
+---
+--- @param title string # The new title of the notebook
+--- @param id integer? # The id of the notebook (defaults to active)
+function M.rename_notebook(title, id)
+	if not registry then
+		return
+	end
+
+	id = id or active_id
+	if not id then
+		Notify.warn("no notebook to rename")
+		return
+	end
+
+	local success = registry:update("notebooks", {
+		where = { id = id },
+		set = { title = title },
+	})
+
+	if not success then
+		Notify.error("failed to rename notebook")
+	end
+end
+
 --- Switches the active notebook to the specified notebook.
 ---
 --- @param id integer # The notebook id

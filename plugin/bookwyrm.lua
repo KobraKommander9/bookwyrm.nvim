@@ -14,6 +14,21 @@ vim.api.nvim_create_user_command("BookwyrmNotebookRegister", function()
 		prompt = "Enter Notebook Title: ",
 		default = vim.fn.fnamemodify(path, ":t"),
 	}, function(input)
-		require("bookwyrm").api.register_notebook({ path = path, title = input })
+		if input then
+			require("bookwyrm").api.register_notebook({ path = path, title = input })
+		end
 	end)
 end, { desc = "Register current directory as a Bookwyrm notebook" })
+
+vim.api.nvim_create_user_command("BookwyrmNotebookRename", function()
+	local path = vim.fn.getcwd()
+
+	vim.ui.input({
+		prompt = "Enter Notebook Title: ",
+		default = vim.fn.fnamemodify(path, ":t"),
+	}, function(input)
+		if input and input ~= "" then
+			require("bookwyrm").api.rename_notebook(input)
+		end
+	end)
+end, { desc = "Delete active Bookwyrm notebook" })

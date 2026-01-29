@@ -55,6 +55,19 @@ function M.register_notebook(opts)
 	DB.register_notebook(path, title, opts.silent)
 end
 
+--- Renames the notebook to the given title.
+---
+--- @param title string # The new title of the notebook
+--- @param id integer? # The id of the notebook (defaults to active)
+function M.rename_notebook(title, id)
+	if not DB then
+		Notify.warn("DB not registered")
+		return
+	end
+
+	DB.rename_notebook(title, id)
+end
+
 --- Selects a notebook and makes it active.
 ---
 --- @param id integer # The id of the notebook
