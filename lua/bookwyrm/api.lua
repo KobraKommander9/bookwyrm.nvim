@@ -20,7 +20,7 @@ function M.get_notebook_list()
 end
 
 --- @class Bookwyrm.api.RegisterOpts
---- @field path string? # The absolute path to the notebook directory (defaults to CWD)
+--- @field path string? # The path to the notebook directory (defaults to CWD)
 --- @field title string? # Friendly name for the notebook (defaults to folder name)
 --- @field auto_scan boolean? # Whether to scan files immediately after registration (defaults to true)
 --- @field silent boolean? # If true will silence notifications (defaults to false)
