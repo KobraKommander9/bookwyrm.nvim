@@ -90,7 +90,64 @@ function M.sync_notebook(force)
 		return
 	end
 
-	notify.error("sync_notebook unimplemented")
+	local scan_dir = state.nb.book.path
+	local disk_files = {}
+
+	local notes = state.nb:list()
+
+	local note_map = {}
+	for _, note in ipairs(notes) do
+		note_map[note.path] = note
+	end
+
+	local function scan(path, cb)
+		vim.uv.fs_scandir(path, function(err, fd)
+			if err then
+				return
+			end
+
+			while true do
+				local name, type = vim.uv.fs_scandir_next(fd)
+				if not name then
+					break
+				end
+
+				local full_path = path .. "/" .. name
+				if type == "directory" then
+					scan(full_path, cb)
+				elseif type == "file" and name:match("%.md$") then
+					local stat = vim.uv.fs_stat(full_path)
+					if stat then
+						disk_files[full_path] = stat.mtime.sec
+					end
+				end
+			end
+
+			cb()
+		end)
+	end
+
+	scan(scan_dir, function()
+		vim.schedule(function()
+			local to_parse = {}
+			local to_delete = {}
+
+			for path, mtime in pairs(disk_files) do
+				local note = note_map[path]
+				if not note or note.mtime ~= mtime then
+					table.insert(to_parse, { path = path, mtime = mtime })
+				end
+			end
+
+			for path, entry in pairs(note_map) do
+				if not disk_files[path] then
+					table.insert(to_delete, entry.id)
+				end
+			end
+
+			process_sync_queue(to_parse, to_delete)
+		end)
+	end)
 end
 
 return M

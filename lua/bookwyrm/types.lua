@@ -39,7 +39,9 @@
 
 --- @class BookwyrmNote
 --- @field id integer # Note ID
+--- @field mtime integer # The last modified time
 --- @field path string # Absolute note path
+--- @field size integer # The size of the file
 --- @field title string # Title of note
 ---
 --- @field aliases BookwyrmAlias[]

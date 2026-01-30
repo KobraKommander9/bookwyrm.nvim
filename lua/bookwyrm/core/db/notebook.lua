@@ -74,6 +74,13 @@ local MIGRATIONS = {
       );
     ]],
 	},
+	{
+		id = "002_note_checks",
+		script = [[
+      ALTER TABLE notes ADD COLUMN mtime INTEGER;
+      ALTER TABLE notes ADD COLUMN size INTEGER;
+    ]],
+	},
 }
 
 --- Opens a connection to the notebook db.
