@@ -136,4 +136,28 @@ function Notebook:migrate()
 	end
 end
 
+-------------------------------------------------------------------------------
+--- Operations
+-------------------------------------------------------------------------------
+
+--- Lists all notes.
+---
+--- @return BookwyrmNote[]
+function Notebook:list()
+	local status, result = pcall(function()
+		--- @diagnostic disable-next-line missing-parameter
+		local rows = self.db:select("notes")
+		assert(rows, "could not list notes")
+
+		return rows
+	end)
+
+	if not status then
+		notify.error(tostring(result), self.silent)
+		return {}
+	end
+
+	return result
+end
+
 return Notebook

@@ -40,9 +40,7 @@ function M.list_notes()
 		return {}
 	end
 
-	notify.error("list_notes unimplemented")
-
-	return {}
+	return state.nb:list()
 end
 
 return M

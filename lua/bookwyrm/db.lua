@@ -142,18 +142,6 @@ function M.force_sync(path)
 	Notify.info("forced sync for: " .. vim.fn.fnamemodify(path, ":t"))
 end
 
---- Returns all notes for the active notebook.
----
---- @return BookwyrmNote[]
-function M.get_notes()
-	if not active then
-		return {}
-	end
-
-	--- @diagnostic disable-next-line missing-parameter
-	return active:select("notes")
-end
-
 --- Saves the note
 ---
 ---@param path string? # Path to buffer, or current buffer
