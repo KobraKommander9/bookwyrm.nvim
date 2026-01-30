@@ -98,7 +98,16 @@ function M.rename_notebook(title, id)
 		return
 	end
 
-	notify.error("rename_notebook unimplemented")
+	id = id or (state.nb and state.nb.book.id)
+	if not id then
+		notify.warn("no notebook to rename", state.cfg.silent)
+	end
+
+	if not state.db:rename(title, id) then
+		notify.error("failed to rename notebook", state.cfg.silent)
+	else
+		notify.info("successfully renamed notebook", state.cfg.silent)
+	end
 end
 
 --- Sets the default notebook.

@@ -145,4 +145,16 @@ function DB:register(nb)
 	return id
 end
 
+--- Renames the notebook.
+---
+--- @param title string # The new title
+--- @param id integer # The id of the notebook to rename.
+--- @return boolean # If the operation was a success.
+function DB:rename_notebook(title, id)
+	return self.db:update("notebooks", {
+		where = { id = id },
+		set = { title = title },
+	})
+end
+
 return DB

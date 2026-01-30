@@ -289,31 +289,6 @@ function M.get_notebook_for_path(path)
 	return best_match
 end
 
---- Renames the notebook to the given title.
----
---- @param title string # The new title of the notebook
---- @param id integer? # The id of the notebook (defaults to active)
-function M.rename_notebook(title, id)
-	if not registry then
-		return
-	end
-
-	id = id or (active_nb and active_nb.id)
-	if not id then
-		Notify.warn("no notebook to rename")
-		return
-	end
-
-	local success = registry:update("notebooks", {
-		where = { id = id },
-		set = { title = title },
-	})
-
-	if not success then
-		Notify.error("failed to rename notebook")
-	end
-end
-
 --- Sets the default notebook. This will be the active notebook when
 --- first opening neovim.
 ---
