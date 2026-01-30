@@ -19,9 +19,7 @@ function M.list_notebooks()
 		return {}
 	end
 
-	notify.error("list_notebooks unimplemented")
-
-	return {}
+	return state.db:list()
 end
 
 --- Loads the default notebook, if one is set.

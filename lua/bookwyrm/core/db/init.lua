@@ -101,8 +101,28 @@ function DB:delete(id)
 	end)
 
 	if not status then
-		notify.error("could not delete: " .. tostring(result), state.cfg.silent)
+		notify.error(tostring(result), state.cfg.silent)
 		return nil
+	end
+
+	return result
+end
+
+--- Lists all registered notebooks.
+---
+--- @return BookwyrmBook[]
+function DB:list()
+	local status, result = pcall(function()
+		--- @diagnostic disable-next-line missing-parameter
+		local rows = self.db:select("notebooks")
+		assert(rows, "could not list notebooks")
+
+		return rows
+	end)
+
+	if not status then
+		notify.error(tostring(result), state.cfg.silent)
+		return {}
 	end
 
 	return result
