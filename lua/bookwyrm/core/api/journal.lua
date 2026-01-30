@@ -11,7 +11,7 @@ local state = require("bookwyrm.core.state")
 --- the created note.
 ---
 --- @param title string # The name of the note
---- @param opts BookwyrmJournalAPI.CreateNoteOpts # Create note opts
+--- @param opts BookwyrmJournalAPI.CreateNoteOpts? # Create note opts
 --- @return string?
 function M.create_note(title, opts)
 	if not state.nb then

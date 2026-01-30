@@ -8,7 +8,7 @@ vim.g.loaded_bookwyrm = true
 -------------------------------------------------------------------------------
 
 vim.api.nvim_create_user_command("BookwyrmNotebookDelete", function()
-	require("bookwyrm").api.delete_notebook()
+	require("bookwyrm").api.unregister_notebook()
 end, { desc = "Delete active Bookwyrm notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmNotebookRegister", function()

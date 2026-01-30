@@ -2,10 +2,10 @@
 
 --- @class BookwyrmDB
 --- @field db sqlite_db
+--- @field silent boolean?
 local DB = {}
 
 local notify = require("bookwyrm.util.notify")
-local state = require("bookwyrm.core.state")
 
 DB.__index = DB
 
@@ -30,21 +30,24 @@ local MIGRATIONS = {
 
 --- Opens a connection to the bookwyrm db.
 ---
+--- @param path string # The registry db path
+--- @param silent boolean? # If the notifications should be silenced
 --- @return BookwyrmDB?
-function DB.open()
+function DB.open(path, silent)
 	local has_sqlite, sqlite = pcall(require, "sqlite.db")
 	if not has_sqlite then
 		return nil
 	end
 
-	local db = sqlite:open(state.cfg.registry_path)
+	local db = sqlite:open(path)
 	if not db then
-		notify.error("db is locked or inaccessible", state.cfg.silent)
+		notify.error("db is locked or inaccessible", silent)
 		return nil
 	end
 
 	local instance = setmetatable({
 		db = db,
+		silent = silent,
 	}, DB)
 
 	local status, err = pcall(function()
@@ -52,7 +55,7 @@ function DB.open()
 	end)
 
 	if not status then
-		notify.error("failed to migrate: " .. tostring(err), state.cfg.silent)
+		notify.error("failed to migrate: " .. tostring(err), silent)
 		return nil
 	end
 
@@ -101,7 +104,7 @@ function DB:delete(id)
 	end)
 
 	if not status then
-		notify.error(tostring(result), state.cfg.silent)
+		notify.error(tostring(result), self.silent)
 		return nil
 	end
 
@@ -156,7 +159,7 @@ function DB:list()
 	end)
 
 	if not status then
-		notify.error(tostring(result), state.cfg.silent)
+		notify.error(tostring(result), self.silent)
 		return {}
 	end
 

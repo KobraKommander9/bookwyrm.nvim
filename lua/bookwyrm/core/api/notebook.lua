@@ -41,7 +41,7 @@ end
 
 --- Registers a notebook for use with bookwyrm.
 ---
---- @param opts BookwyrmNotebookAPI.RegisterOpts
+--- @param opts BookwyrmNotebookAPI.RegisterOpts?
 --- @return BookwyrmBook? # The registered notebook, if successful
 function M.register_notebook(opts)
 	opts = opts or {}
@@ -161,7 +161,7 @@ end
 
 --- Unregisters the notebook and optionally deletes the sqlite db.
 ---
---- @param opts BookwyrmNotebookAPI.UnregisterNotebookOpts
+--- @param opts BookwyrmNotebookAPI.UnregisterNotebookOpts?
 function M.unregister_notebook(opts)
 	opts = opts or {}
 

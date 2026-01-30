@@ -1,10 +1,10 @@
 --- @class BookwyrmNotebookDB
 --- @field book BookwyrmBook
 --- @field db sqlite_db
+--- @field silent boolean?
 local Notebook = {}
 
 local notify = require("bookwyrm.util.notify")
-local state = require("bookwyrm.core.state")
 
 Notebook.__index = Notebook
 
@@ -76,23 +76,25 @@ local MIGRATIONS = {
 --- Opens a connection to the notebook db.
 ---
 --- @param nb BookwyrmBook
+--- @param silent boolean? # If notifications should be silenced
 --- @return BookwyrmNotebookDB?
-function Notebook.open(nb)
+function Notebook.open(nb, silent)
 	local db = require("sqlite.db"):open(nb.db_path)
 	if not db then
-		notify.error("unable to access notebook db", state.cfg.silent)
+		notify.error("unable to access notebook db", silent)
 		return nil
 	end
 
 	local success = db:eval("PRAGMA foreign_keys = ON;")
 	if not success then
-		notify.error("unable to connect to db", state.cfg.silent)
+		notify.error("unable to connect to db", silent)
 		return nil
 	end
 
 	local instance = setmetatable({
 		book = nb,
 		db = db,
+		silent = silent,
 	}, Notebook)
 
 	local status, err = pcall(function()
@@ -100,7 +102,7 @@ function Notebook.open(nb)
 	end)
 
 	if not status then
-		notify.error("failed to migrate: " .. tostring(err), state.cfg.silent)
+		notify.error("failed to migrate: " .. tostring(err), silent)
 		return nil
 	end
 
