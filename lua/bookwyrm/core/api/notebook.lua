@@ -135,12 +135,19 @@ end
 --- Switches to the specified notebook. Noop if already selected.
 ---
 --- @param id integer # The id of the notebook to switch to
+--- @return BookwyrmBook? # The opened notebook
 function M.switch_to_notebook(id)
 	if not state.db then
-		return
+		return nil
 	end
 
-	notify.error("switch_to_notebook unimplemented")
+	local nb = state.db:get(id)
+	if not nb then
+		return nil
+	end
+
+	-- TODO: open nb
+	return nb
 end
 
 --- @class BookwyrmNotebookAPI.UnregisterNotebookOpts

@@ -2,7 +2,6 @@
 
 local M = {}
 
-local Cfg = require("bookwyrm.config")
 local Notify = require("bookwyrm.notify")
 local Paths = require("bookwyrm.paths")
 
@@ -109,86 +108,6 @@ function M.migrate_registry(path)
 	end
 end
 
---- Bootstraps the notebook db with the correct schemas.
----
---- @param db sqlite_db # The notebook db
-local function bootstrap_notebook(db)
-	db:eval("PRAGMA foreign_keys = ON;")
-
-	local schemas = {
-		[[
-      CREATE TABLE IF NOT EXISTS notes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        path TEXT UNIQUE NOT NULL,
-        title TEXT NOT NULL
-      );
-    ]],
-		[[
-      CREATE TABLE IF NOT EXISTS tags (
-        note_id INTEGER NOT NULL,
-        tag TEXT NOT NULL,
-        PRIMARY KEY (note_id, tag),
-        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-      );
-    ]],
-		[[
-      CREATE TABLE IF NOT EXISTS aliases (
-        note_id INTEGER NOT NULL,
-        alias TEXT NOT NULL,
-        PRIMARY KEY (note_id, alias),
-        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-      );
-    ]],
-		[[
-      CREATE TABLE IF NOT EXISTS anchors (
-        note_id INTEGER NOT NULL,
-        anchor_id TEXT NOT NULL,
-        content TEXT NOT NULL,
-        start_line INTEGER NOT NULL,
-        start_char INTEGER NOT NULL,
-        end_line INTEGER NOT NULL,
-        end_char INTEGER NOT NULL,
-        PRIMARY KEY (note_id, anchor_id),
-        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-      );
-    ]],
-		[[
-      CREATE TABLE IF NOT EXISTS links (
-        link_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        note_id INTEGER NOT NULL,
-        target_note TEXT,
-        target_anchor TEXT,
-        context TEXT NOT NULL,
-        start_line INTEGER NOT NULL,
-        start_char INTEGER NOT NULL,
-        end_line INTEGER NOT NULL,
-        end_char INTEGER NOT NULL,
-        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-      );
-    ]],
-		[[
-      CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        note_id INTEGER NOT NULL,
-        content TEXT NOT NULL,
-        line INTEGER NOT NULL,
-        status INTEGER DEFAULT 0,
-        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-      );
-    ]],
-	}
-
-	for _, sql in ipairs(schemas) do
-		local ok, err = pcall(function()
-			db:eval(sql)
-		end)
-
-		if not ok then
-			error("SQL Bootstrap Error: " .. tostring(err) .. "\nStatement: " .. sql)
-		end
-	end
-end
-
 -------------------------------------------------------------------------------
 --- Registry
 -------------------------------------------------------------------------------
@@ -197,39 +116,8 @@ end
 --- Internal
 ---------------------------------------
 
-local function close_active()
-	if active then
-		active:close()
-		active = nil
-		active_nb = nil
-		save_cache = {}
-	end
-end
-
 local function is_markdown(bufnr)
 	return vim.bo[bufnr].filetype == "markdown"
-end
-
-local function open_notebook(nb)
-	close_active()
-
-	active = sqlite:open(nb.db_path)
-	if not active then
-		Notify.error("unable to open notebook db at: " .. nb.db_path)
-	end
-
-	local status, err = pcall(function()
-		bootstrap_notebook(active)
-	end)
-
-	if not status then
-		close_active()
-
-		Notify.error("bootstrap failed: " .. tostring(err))
-		return
-	end
-
-	active_nb = nb
 end
 
 ---------------------------------------
@@ -287,27 +175,6 @@ function M.get_notebook_for_path(path)
 	end
 
 	return best_match
-end
-
---- Switches the active notebook to the specified notebook.
----
---- @param id integer # The notebook id
-function M.switch_to_notebook(id)
-	if not registry or (active_nb and active_nb.id == id) then
-		return
-	end
-
-	--- @type BookwyrmBook
-	local rows = registry:select("notebooks", {
-		where = { id = id },
-	})
-
-	if not rows or #rows == 0 then
-		Notify.error("notebook not found")
-		return
-	end
-
-	open_notebook(rows[1])
 end
 
 -------------------------------------------------------------------------------

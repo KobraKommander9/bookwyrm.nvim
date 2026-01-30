@@ -108,6 +108,24 @@ function DB:delete(id)
 	return result
 end
 
+--- Gets the specified notebook.
+---
+--- @param id integer # The notebook id
+--- @return BookwyrmBook?
+function DB:get(id)
+	local status, result = pcall(function()
+		local rows = self.db:select("notebooks", { where = { id = id } })
+		assert(rows and #rows == 1)
+		return rows[1]
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
 --- Lists all registered notebooks.
 ---
 --- @return BookwyrmBook[]
