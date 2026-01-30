@@ -100,7 +100,7 @@ function Notebook.open(nb)
 	end)
 
 	if not status then
-		notify.error("failed to migrate: " .. tostring(err))
+		notify.error("failed to migrate: " .. tostring(err), state.cfg.silent)
 		return nil
 	end
 

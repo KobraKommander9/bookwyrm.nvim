@@ -1,3 +1,5 @@
+--- @diagnostic disable: missing-fields
+
 --- @class BookwyrmDB
 --- @field db sqlite_db
 local DB = {}
@@ -50,7 +52,7 @@ function DB.open()
 	end)
 
 	if not status then
-		notify.error("failed to migrate: " .. tostring(err))
+		notify.error("failed to migrate: " .. tostring(err), state.cfg.silent)
 		return nil
 	end
 
@@ -77,6 +79,33 @@ function DB:migrate()
 			assert(self.db:insert("_migrations", { id = id }))
 		end
 	end
+end
+
+-------------------------------------------------------------------------------
+--- Operations
+-------------------------------------------------------------------------------
+
+--- Deletes the notebook from the db.
+---
+--- @param id integer # The notebook id
+--- @return BookwyrmBook? # The deleted notebook if successful
+function DB:delete(id)
+	local status, result = pcall(function()
+		local rows = self.db:select("notebooks", { where = { id = id } })
+		assert(rows and #rows > 0, "could not find notebook")
+
+		--- @diagnostic disable-next-line assign-type-mismatch
+		assert(self.db:delete("notebooks", { id = id }))
+
+		return rows[1]
+	end)
+
+	if not status then
+		notify.error("could not delete: " .. tostring(result), state.cfg.silent)
+		return nil
+	end
+
+	return result
 end
 
 return DB

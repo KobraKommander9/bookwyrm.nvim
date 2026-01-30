@@ -4,18 +4,6 @@ local M = {}
 local notify = require("bookwyrm.util.notify")
 local state = require("bookwyrm.core.state")
 
---- Deletes the notebook. This just removes the notebook from the registry,
---- does not affect the filesystem.
----
---- @param id integer? # The id of the notebook to delete (defaults to active).
-function M.delete_notebook(id)
-	if not state.db then
-		return
-	end
-
-	notify.error("delete_notebook unimplemented")
-end
-
 --- Returns the active notebook, if any.
 ---
 --- @return BookwyrmBook?
@@ -102,11 +90,41 @@ end
 ---
 --- @param opts BookwyrmNotebookAPI.UnregisterNotebookOpts
 function M.unregister_notebook(opts)
+	opts = opts or {}
+
 	if not state.db then
 		return
 	end
 
-	notify.error("unregister_notebook unimplemented")
+	local target_id = opts.id
+	if not target_id then
+		if state.nb then
+			target_id = state.nb.book.id
+		else
+			notify.warn("No notebook id provided and no notebook currently active", state.cfg.silent)
+			return
+		end
+	end
+
+	if state.nb and state.nb.book.id == target_id then
+		state.nb:close()
+		state.nb = nil
+	end
+
+	local nb = state.db:delete(target_id)
+	if not nb or not opts.delete then
+		return
+	end
+
+	local success, err = os.remove(nb.db_path)
+	if not success then
+		notify.warn(
+			"unregistered notebook but could not delete file (" .. nb.db_path .. ") for: " .. tostring(err),
+			state.cfg.silent
+		)
+	else
+		notify.info("deleted notebook database: " .. nb.title, state.cfg.silent)
+	end
 end
 
 return M
