@@ -128,4 +128,21 @@ function DB:list()
 	return result
 end
 
+--- Registers a new notebook.
+---
+--- @param nb BookwyrmBook # The notebook to register
+--- @return integer? # The id of the created notebook, if successful
+function DB:register(nb)
+	local success, id = self.db:insert("notebooks", {
+		db_path = nb.db_path,
+		path = nb.path,
+		title = nb.title,
+	})
+	if not success then
+		return nil
+	end
+
+	return id
+end
+
 return DB

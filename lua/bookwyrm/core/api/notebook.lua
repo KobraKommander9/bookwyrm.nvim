@@ -2,6 +2,7 @@
 local M = {}
 
 local notify = require("bookwyrm.util.notify")
+local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.core.state")
 
 --- Returns the active notebook, if any.
@@ -35,15 +36,57 @@ end
 --- @field path string? The path to the notebook directory (defaults to CWD)
 --- @field title string? The title of the notebook (defaults to folder name)
 
---- Registers the notebook for use with bookwyrm.
+--- Registers a notebook for use with bookwyrm.
 ---
 --- @param opts BookwyrmNotebookAPI.RegisterOpts
+--- @return BookwyrmBook? # The registered notebook, if successful
 function M.register_notebook(opts)
+	opts = opts or {}
+
 	if not state.db then
 		return
 	end
 
-	notify.error("register_notebook unimplemented")
+	local path = paths.normalize(opts.path or vim.fn.getcwd())
+	paths.ensure_dir(path)
+
+	if vim.fn.isdirectory(path) == 0 then
+		notify.error("path is not a valid directory: " .. path, state.cfg.silent)
+		return nil
+	end
+
+	local title = opts.title or vim.fn.fnamemodify(path, ":t:r")
+	local db_filename = title:gsub("%W", "_"):lower()
+	local db_path = state.cfg.notebook_dir .. "/" .. db_filename .. ".sqlite"
+
+	local count = 0
+	local base_path = db_path
+
+	while not vim.fn.filereadable(db_path) do
+		count = count + 1
+		if count >= 10 then
+			notify.error("too many db files in directory", state.cfg.silent)
+			return nil
+		end
+
+		db_path = base_path .. "(" .. count .. ").sqlite"
+	end
+
+	local nb = {
+		db_path = db_path,
+		path = path,
+		title = title,
+	}
+
+	local id = state.db:register(nb)
+	if not id then
+		notify.error("failed to register notebook")
+		return nil
+	end
+
+	nb.id = id
+
+	return nb
 end
 
 --- Renames the notebook.
