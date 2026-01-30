@@ -150,11 +150,32 @@ end
 --- @param title string # The new title
 --- @param id integer # The id of the notebook to rename.
 --- @return boolean # If the operation was a success.
-function DB:rename_notebook(title, id)
+function DB:rename(title, id)
 	return self.db:update("notebooks", {
 		where = { id = id },
 		set = { title = title },
 	})
+end
+
+--- Sets the default notebook.
+---
+--- @param id integer # The id of the notebook to set as default
+--- @return boolean # If the operation was a success.
+function DB:set_default(id)
+	local status, err = pcall(function()
+		assert(self.db:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
+		assert(self.db:eval("UPDATE notebooks SET is_default = 0 WHERE is_default = 1;"))
+		assert(self.db:eval("UPDATE notebooks SET is_default = 1 WHERE id = :id;", { id = id }))
+		assert(self.db:eval("COMMIT;"), "failed to commit transaction")
+	end)
+
+	if not status then
+		self.db:eval("ROLLBACK;")
+		notify.error("could not set default notebook: " .. tostring(err))
+		return false
+	end
+
+	return true
 end
 
 return DB

@@ -101,6 +101,7 @@ function M.rename_notebook(title, id)
 	id = id or (state.nb and state.nb.book.id)
 	if not id then
 		notify.warn("no notebook to rename", state.cfg.silent)
+		return nil
 	end
 
 	if not state.db:rename(title, id) then
@@ -118,7 +119,17 @@ function M.set_default_notebook(id)
 		return
 	end
 
-	notify.error("set_default_notebook unimplemented")
+	id = id or (state.nb and state.nb.book.id)
+	if not id then
+		notify.warn("no notebook specified", state.cfg.silent)
+		return
+	end
+
+	if not state.db:set_default(id) then
+		notify.error("failed to set default notebook", state.cfg.silent)
+	else
+		notify.info("successfully set default notebook", state.cfg.silent)
+	end
 end
 
 --- Switches to the specified notebook. Noop if already selected.

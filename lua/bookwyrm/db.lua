@@ -289,33 +289,6 @@ function M.get_notebook_for_path(path)
 	return best_match
 end
 
---- Sets the default notebook. This will be the active notebook when
---- first opening neovim.
----
---- @param id integer? # The id of the notebook, defaults to active
-function M.set_default_notebook(id)
-	if not registry then
-		return
-	end
-
-	id = id or (active_nb and active_nb.id)
-	if not id then
-		Notify.warn("no notebook specified")
-	end
-
-	local status, err = pcall(function()
-		assert(registry:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
-		assert(registry:eval("UPDATE notebooks SET is_default = 0 WHERE is_default = 1;"))
-		assert(registry:eval("UPDATE notebooks SET is_default = 1 WHERE id = :id;", { id = id }))
-		assert(registry:eval("COMMIT;"), "failed to commit transaction")
-	end)
-
-	if not status then
-		registry:eval("ROLLBACK;")
-		Notify.error("could not set default notebook: " .. tostring(err))
-	end
-end
-
 --- Switches the active notebook to the specified notebook.
 ---
 --- @param id integer # The notebook id
