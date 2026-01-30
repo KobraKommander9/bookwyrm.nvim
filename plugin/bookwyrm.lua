@@ -50,7 +50,7 @@ vim.api.nvim_create_user_command("BookwyrmNoteCreate", function()
 		prompt = "Enter Note Title: ",
 	}, function(title)
 		if title and title ~= "" then
-			require("bookwyrm").api.create_note(title)
+			require("bookwyrm").api.create_note(title, { open = true })
 		end
 	end)
 end, { desc = "Create note in active notebook" })

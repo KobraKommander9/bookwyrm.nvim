@@ -6,7 +6,7 @@ local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.core.state")
 
 --- @class BookwyrmJournalAPI.CreateNoteOpts
---- @field open boolean? # If true, open note
+--- @field open true|"edit"|"vsplit"|"split"? # If true, open note
 
 --- Creates a new note in the active notebook. Returns the created note.
 ---
@@ -53,8 +53,8 @@ function M.create_note(title, opts)
 		notify.warn("failed to sync new note")
 	end
 
-	if opts.open == true then
-		vim.cmd("vsplit " .. full_path)
+	if opts.open then
+		vim.cmd((opts.open == true and "vsplit" or opts.open) .. " " .. full_path)
 	end
 
 	return nb
