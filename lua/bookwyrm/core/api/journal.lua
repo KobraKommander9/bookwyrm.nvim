@@ -14,7 +14,35 @@ local state = require("bookwyrm.core.state")
 --- @param opts BookwyrmJournalAPI.CreateNoteOpts # Create note opts
 --- @return string?
 function M.create_note(title, opts)
+	if not state.nb then
+		return nil
+	end
+
 	notify.error("create_note unimplemented")
+end
+
+--- Deletes the specified note.
+---
+--- @param id integer # The id of the note to delete
+function M.delete_note(id)
+	if not state.nb then
+		return
+	end
+
+	notify.error("delete_note unimplemented")
+end
+
+--- Lists all notes in the active notebook.
+---
+--- @return BookwyrmNote[]
+function M.list_notes()
+	if not state.nb then
+		return {}
+	end
+
+	notify.error("list_notes unimplemented")
+
+	return {}
 end
 
 return M
