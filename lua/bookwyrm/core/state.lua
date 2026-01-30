@@ -1,6 +1,7 @@
 --- @class BookwyrmState
 --- @field cfg BookwyrmConfig
 --- @field db BookwyrmDB?
+--- @field nb BookwyrmNotebookDB?
 local M = {}
 
 --- @class BookwyrmConfig

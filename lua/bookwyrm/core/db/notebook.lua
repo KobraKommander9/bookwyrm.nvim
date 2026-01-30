@@ -1,6 +1,6 @@
 --- @class BookwyrmNotebookDB
+--- @field book BookwyrmBook
 --- @field db sqlite_db
---- @field nb BookwyrmBook
 local Notebook = {}
 
 local notify = require("bookwyrm.util.notify")
@@ -9,7 +9,7 @@ local state = require("bookwyrm.core.state")
 Notebook.__index = Notebook
 
 function Notebook:__tostring()
-	return string.format("NotebookDB(%s): %s", self.nb.title, self.nb.db_path)
+	return string.format("NotebookDB(%s): %s", self.book.title, self.book.db_path)
 end
 
 local MIGRATIONS = {
@@ -91,8 +91,8 @@ function Notebook.open(nb)
 	end
 
 	local instance = setmetatable({
+		book = nb,
 		db = db,
-		nb = nb,
 	}, Notebook)
 
 	local status, err = pcall(function()
