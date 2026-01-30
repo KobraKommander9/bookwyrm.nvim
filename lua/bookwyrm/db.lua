@@ -3,7 +3,6 @@
 local M = {}
 
 local Notify = require("bookwyrm.notify")
-local Paths = require("bookwyrm.paths")
 
 ---------------------------------------
 --- State
@@ -11,9 +10,6 @@ local Paths = require("bookwyrm.paths")
 
 --- @type sqlite_db?
 local active = nil
-
---- @type BookwyrmBook?
-local active_nb = nil
 
 local save_cache = {}
 
@@ -83,54 +79,6 @@ end
 ---------------------------------------
 --- Operations
 ---------------------------------------
-
---- Creates a new note file in the active notebook. Returns the created note if
---- successful.
----
---- @param title string # the title of the new note
---- @return BookwyrmNote?
-function M.create_note(title)
-	if not active or not active_nb then
-		Notify.error("No active notebook to create note in.")
-		return nil
-	end
-
-	if not title or title == "" then
-		Notify.error("Note title required")
-		return nil
-	end
-
-	local slug = title:gsub("%s+", "-"):gsub("[^%w%-]", ""):lower()
-	local filename = slug .. ".md"
-	local full_path = Paths.normalize(active_nb.path .. "/" .. filename)
-
-	local rows = active:select("notes", { where = { path = full_path } })
-	if rows and #rows > 0 then
-		return rows[1]
-	end
-
-	local f = io.open(full_path, "w")
-	if f then
-		f:write("---\n")
-		f:write("title: " .. title .. "\n")
-		f:write("---\n\n")
-		f:close()
-	end
-
-	local nb = {
-		path = full_path,
-		title = title,
-	}
-
-	local success, id = active:insert("notes", nb)
-	if not success then
-		Notify.warn("Failed to sync new note")
-	end
-
-	nb.id = id
-
-	return nb
-end
 
 --- Forces a save by clearing the cache for the given path.
 ---

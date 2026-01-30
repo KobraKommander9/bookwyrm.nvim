@@ -5,6 +5,7 @@ local M = {}
 --- @param items table[]
 --- @param mapper function
 function M.batch_insert(db, table_name, items, mapper)
+	items = items or {}
 	if #items == 0 then
 		return
 	end

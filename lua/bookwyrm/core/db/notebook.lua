@@ -1,3 +1,5 @@
+--- @diagnostic disable: missing-fields
+
 --- @class BookwyrmNotebookDB
 --- @field book BookwyrmBook
 --- @field db sqlite_db
@@ -5,6 +7,7 @@
 local Notebook = {}
 
 local notify = require("bookwyrm.util.notify")
+local Q = require("bookwyrm.core.db.queries")
 
 Notebook.__index = Notebook
 
@@ -140,6 +143,24 @@ end
 --- Operations
 -------------------------------------------------------------------------------
 
+--- Gets the note for the provided path, if any.
+---
+--- @param path string # The full path to the note.
+--- @return BookwyrmNote?
+function Notebook:get_for_path(path)
+	local status, result = pcall(function()
+		local rows = self.db:select("notes", { where = { path = path } })
+		assert(rows and #rows > 0)
+		return rows[1]
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
 --- Lists all notes.
 ---
 --- @return BookwyrmNote[]
@@ -158,6 +179,92 @@ function Notebook:list()
 	end
 
 	return result
+end
+
+--- Saves a note.
+---
+--- @param nb BookwyrmNote # The note to save
+--- @return BookwyrmNote?
+function Notebook:save(nb)
+	local status, result = pcall(function()
+		assert(self.db:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
+
+		local rows = self.db:eval(
+			[[
+      INSERT INTO notes (path, title) VALUES (:path, :title)
+      ON CONFLICT(path) DO UPDATE SET title = excluded.title
+      RETURNING id
+    ]],
+			{ path = nb.path, title = nb.title }
+		)
+
+		if not rows or #rows < 1 then
+			error("note upsert failed")
+		end
+
+		local note_id = rows[1].id
+
+		assert(self.db:delete("aliases", { note_id = note_id }), "failed to delete aliases")
+		assert(self.db:delete("anchors", { note_id = note_id }), "failed to delete anchors")
+		assert(self.db:delete("links", { note_id = note_id }), "failed to delete links")
+		assert(self.db:delete("tags", { note_id = note_id }), "failed to delete tags")
+		assert(self.db:delete("tasks", { note_id = note_id }), "failed to delete tasks")
+
+		Q.batch_insert(self.db, "aliases", nb.aliases, function(a)
+			return { note_id = note_id, alias = a.alias }
+		end)
+
+		Q.batch_insert(self.db, "anchors", nb.anchors, function(a)
+			return {
+				note_id = note_id,
+				anchor_id = a.anchor_id,
+				content = a.content,
+				start_line = a.loc.start.line,
+				start_char = a.loc.start.character,
+				end_line = a.loc.finish.line,
+				end_char = a.loc.finish.character,
+			}
+		end)
+
+		Q.batch_insert(self.db, "links", nb.links, function(l)
+			return {
+				note_id = note_id,
+				target_note = l.target_note,
+				target_anchor = l.target_anchor,
+				context = l.context,
+				start_line = l.loc.start.line,
+				start_char = l.loc.start.character,
+				end_line = l.loc.finish.line,
+				end_char = l.loc.finish.character,
+			}
+		end)
+
+		Q.batch_insert(self.db, "tags", nb.tags, function(t)
+			return { note_id = note_id, tag = t.tag }
+		end)
+
+		Q.batch_insert(self.db, "tasks", nb.tasks, function(t)
+			return {
+				note_id = note_id,
+				line = t.line,
+				content = t.content,
+				status = t.status,
+			}
+		end)
+
+		assert(self.db:eval("COMMIT;"), "failed to commit")
+
+		return note_id
+	end)
+
+	if not status then
+		notify.error("failed to save note: " .. tostring(result), self.silent)
+		return nil
+	end
+
+	nb.id = result
+
+	return nb
 end
 
 return Notebook
