@@ -5,18 +5,9 @@ local M = {}
 local Notify = require("bookwyrm.notify")
 local Paths = require("bookwyrm.paths")
 
-local has_sqlite, sqlite = pcall(require, "sqlite.db")
-if not has_sqlite then
-	require("bookwyrm.notify").error("sqlite required")
-	return nil
-end
-
 ---------------------------------------
 --- State
 ---------------------------------------
-
---- @type sqlite_db?
-local registry = nil
 
 --- @type sqlite_db?
 local active = nil
@@ -49,108 +40,12 @@ local function batch_insert(db, table_name, items, mapper)
 	end
 end
 
--------------------------------------------------------------------------------
---- Init
--------------------------------------------------------------------------------
-
---- Initializes the registry db
----
---- @param path string # The path to the registry db
-function M.init_registry(path)
-	registry = sqlite:open(path)
-	if not registry then
-		Notify.error("registry is locked or inaccessible!")
-		return
-	end
-
-	registry:create("notebooks", {
-		active = { type = "integer", required = true },
-		db_path = { type = "text", unique = true, required = true },
-		id = { type = "integer", primary = true, autoincrement = true },
-		is_default = { type = "integer", default = "0" },
-		path = { type = "text", unique = true, required = true },
-		title = { type = "text", required = true },
-
-		--- @diagnostic disable-next-line: assign-type-mismatch
-		ensure = true,
-	})
-end
-
-function M.migrate_registry(path)
-	if not registry then
-		return
-	end
-
-	local old_notebooks = M.get_notebooks()
-
-	registry:close()
-	registry = nil
-
-	local success, err = os.remove(path)
-	if not success and vim.fn.filereadable(path) == 1 then
-		Notify.error("registry migration failed: " .. tostring(err))
-		return
-	end
-
-	M.init_registry(path)
-
-	success, err = pcall(batch_insert, registry, "notebooks", old_notebooks, function(nb)
-		return {
-			active = nb.active,
-			db_path = nb.db_path,
-			is_default = nb.is_default or 0,
-			path = nb.path,
-			title = nb.title,
-		}
-	end)
-	if not success then
-		Notify.error("failed to reregister old notebooks: " .. tostring(err))
-	end
-end
-
--------------------------------------------------------------------------------
---- Registry
--------------------------------------------------------------------------------
-
 ---------------------------------------
 --- Internal
 ---------------------------------------
 
 local function is_markdown(bufnr)
 	return vim.bo[bufnr].filetype == "markdown"
-end
-
----------------------------------------
---- Operations
----------------------------------------
-
---- Returns the notebook that owns the given path, if any.
----
---- @param path string # The path to check
---- @return BookwyrmBook?
-function M.get_notebook_for_path(path)
-	if not registry then
-		return nil
-	end
-
-	local rows = registry:select("notebooks", { where = { active = 1 } })
-	if not rows or #rows == 0 then
-		return nil
-	end
-
-	local best_match = nil
-	local longest_path = -1
-
-	for _, nb in ipairs(rows) do
-		if vim.startswith(path, nb.path) then
-			if #nb.path > longest_path then
-				longest_path = #nb.path
-				best_match = nb
-			end
-		end
-	end
-
-	return best_match
 end
 
 -------------------------------------------------------------------------------
@@ -160,26 +55,6 @@ end
 ---------------------------------------
 --- Utility
 ---------------------------------------
-
---- Checks if the saved file belongs in a notebook and will write it to the
---- appropriate notebook.
-function M.on_save()
-	local path = vim.api.nvim_buf_get_name(0)
-	if path == "" or not is_markdown(0) then
-		return
-	end
-
-	local nb = M.get_notebook_for_path(path)
-	if not nb then
-		return
-	end
-
-	if not active_nb or active_nb.id ~= nb.id then
-		M.switch_to_notebook(nb.id)
-	end
-
-	M.save_note(path)
-end
 
 --- Resyncs the active notebook with the filesystem.
 function M.resync()
