@@ -49,7 +49,6 @@
 --- @field tasks BookwyrmTask[]
 
 --- @class BookwyrmBook
---- @field active integer # 1 if active
 --- @field db_path string # Absolute path to notebook db
 --- @field id integer # Noteboook ID
 --- @field is_default boolean # If the notebook is the default active

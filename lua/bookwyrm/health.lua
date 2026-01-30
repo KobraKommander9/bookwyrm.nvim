@@ -9,11 +9,11 @@ function M.check()
 		vim.health.error("sqlite.lua is missing")
 	end
 
-	if vim.fn.executable("rg") == 1 then
-		vim.health.ok("ripgrep is installed")
-	else
-		vim.health.warn("ripgrep not found; full-text search will be slow")
-	end
+	-- if vim.fn.executable("rg") == 1 then
+	-- 	vim.health.ok("ripgrep is installed")
+	-- else
+	-- 	vim.health.warn("ripgrep not found; full-text search will be slow")
+	-- end
 end
 
 return M
