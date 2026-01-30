@@ -16,7 +16,7 @@ end
 local MIGRATIONS = {
 	{
 		id = "001_init_db",
-		sql = [[
+		script = [[
       CREATE TABLE IF NOT EXISTS notebooks (
         db_path TEXT NOT NULL UNIQUE,
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,7 +55,7 @@ function DB.open(path, silent)
 	end)
 
 	if not status then
-		notify.error("failed to migrate: " .. tostring(err), silent)
+		notify.error("failed to migrate registry: " .. tostring(err), silent)
 		return nil
 	end
 

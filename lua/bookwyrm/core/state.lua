@@ -34,7 +34,7 @@ end
 function M.open_notebook(nb)
 	M.close_notebook()
 
-	M.nb = nb_db.open(nb)
+	M.nb = nb_db.open(nb, M.cfg.silent)
 	if not M.nb then
 		notify.error("failed to open notebook: " .. nb.title, M.cfg.silent)
 	end

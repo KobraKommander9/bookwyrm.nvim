@@ -15,7 +15,7 @@ end
 local MIGRATIONS = {
 	{
 		id = "001_init_db",
-		sql = [[
+		script = [[
       CREATE TABLE IF NOT EXISTS notes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         path TEXT UNIQUE NOT NULL,
@@ -102,7 +102,7 @@ function Notebook.open(nb, silent)
 	end)
 
 	if not status then
-		notify.error("failed to migrate: " .. tostring(err), silent)
+		notify.error("failed to migrate notebook: " .. tostring(err), silent)
 		return nil
 	end
 

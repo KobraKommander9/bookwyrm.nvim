@@ -15,8 +15,7 @@ end
 --- @return string
 function M.normalize(path)
 	path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
-	path:gsub("(.+)/$", "%1")
-	return path
+	return vim.fs.normalize(path)
 end
 
 return M
