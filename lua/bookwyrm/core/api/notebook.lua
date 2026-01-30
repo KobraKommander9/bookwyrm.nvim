@@ -80,11 +80,12 @@ function M.register_notebook(opts)
 
 	local id = state.db:register(nb)
 	if not id then
-		notify.error("failed to register notebook")
+		notify.error("failed to register notebook", state.cfg.silent)
 		return nil
 	end
 
 	nb.id = id
+	state.open_notebook(nb)
 
 	return nb
 end
@@ -98,7 +99,7 @@ function M.rename_notebook(title, id)
 		return
 	end
 
-	id = id or (state.nb and state.nb.book.id)
+	id = id or state.get_active_id()
 	if not id then
 		notify.warn("no notebook to rename", state.cfg.silent)
 		return nil
@@ -119,7 +120,7 @@ function M.set_default_notebook(id)
 		return
 	end
 
-	id = id or (state.nb and state.nb.book.id)
+	id = id or state.get_active_id()
 	if not id then
 		notify.warn("no notebook specified", state.cfg.silent)
 		return
@@ -164,19 +165,14 @@ function M.unregister_notebook(opts)
 		return
 	end
 
-	local target_id = opts.id
+	local target_id = opts.id or state.get_active_id()
 	if not target_id then
-		if state.nb then
-			target_id = state.nb.book.id
-		else
-			notify.warn("No notebook id provided and no notebook currently active", state.cfg.silent)
-			return
-		end
+		notify.warn("No notebook id provided and no notebook currently active", state.cfg.silent)
+		return
 	end
 
-	if state.nb and state.nb.book.id == target_id then
-		state.nb:close()
-		state.nb = nil
+	if state.get_active_id() == target_id then
+		state.close_notebook()
 	end
 
 	local nb = state.db:delete(target_id)
