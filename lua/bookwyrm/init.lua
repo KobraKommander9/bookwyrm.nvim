@@ -3,6 +3,9 @@ local M = {}
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.core.state")
 
+--- @class BookwyrmAPI
+M.api = require("bookwyrm.core.api")
+
 --- @class BookwyrmOpts
 --- @field data_path string? # The base path for the bookwyrm data
 --- @field silent boolean? # If true silences notifications
@@ -21,19 +24,14 @@ function M.setup(opts)
 	state.cfg.notebook_dir = state.cfg.data_path .. "/notebooks"
 	paths.ensure_dir(state.cfg.notebook_dir)
 
-	--  local db = require("bookwyrm.db")
-	-- if not db then
-	-- 	require("bookwyrm.notify").error("unable to initialize notebook registry")
-	-- 	return
-	-- end
-	--
-	-- if not opts.recreate_registry then
-	-- 	db.init_registry(options.registry_path)
-	-- else
-	-- 	db.migrate_registry(options.registry_path)
-	-- end
-	--
-	-- db.load_active_notebook()
+	local db = require("bookwyrm.core.db").open()
+	if not db then
+		return
+	end
+
+	state.db = db
+
+	M.api.load_default_notebook()
 end
 
 return M

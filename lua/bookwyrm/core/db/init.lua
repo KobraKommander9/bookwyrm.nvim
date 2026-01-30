@@ -13,7 +13,7 @@ end
 
 local MIGRATIONS = {
 	{
-		id = "001_init_registry",
+		id = "001_init_db",
 		sql = [[
       CREATE TABLE IF NOT EXISTS notebooks (
         db_path TEXT NOT NULL UNIQUE,
