@@ -29,7 +29,10 @@ function M.load_default_notebook()
 		return
 	end
 
-	notify.error("load_default_notebook unimplemented")
+	local nb = state.db:get_default()
+	if nb then
+		state.open_notebook(nb)
+	end
 end
 
 --- @class BookwyrmNotebookAPI.RegisterOpts
@@ -147,7 +150,8 @@ function M.switch_to_notebook(id)
 		return nil
 	end
 
-	-- TODO: open nb
+	state.open_notebook(nb)
+
 	return nb
 end
 

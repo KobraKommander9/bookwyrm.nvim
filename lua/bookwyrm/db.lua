@@ -121,30 +121,6 @@ local function is_markdown(bufnr)
 end
 
 ---------------------------------------
---- Utility
----------------------------------------
-
---- Returns the active notebook title, if one is active. Can be used in
---- statuslines.
----
---- @return BookwyrmBook?
-function M.get_active_notebook()
-	return active and active_nb or nil
-end
-
---- Loads the default active notebook.
-function M.load_active_notebook()
-	if not registry then
-		return
-	end
-
-	local rows = registry:select("notebooks", { where = { is_default = 1 } })
-	if rows and #rows > 0 then
-		M.switch_to_notebook(rows[1].id)
-	end
-end
-
----------------------------------------
 --- Operations
 ---------------------------------------
 

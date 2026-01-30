@@ -126,6 +126,23 @@ function DB:get(id)
 	return result
 end
 
+--- Gets the default notebook, if any.
+---
+--- @return BookwyrmBook?
+function DB:get_default()
+	local status, result = pcall(function()
+		local rows = self.db:select("notebooks", { where = { is_default = 1 } })
+		assert(rows and #rows == 1)
+		return rows[1]
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
 --- Lists all registered notebooks.
 ---
 --- @return BookwyrmBook[]
