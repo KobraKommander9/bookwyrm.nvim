@@ -82,4 +82,15 @@ function M.list_notes()
 	return state.nb:list()
 end
 
+--- Syncs the notebook with the filesystem.
+---
+--- @param force boolean? # If true will force the sync.
+function M.sync_notebook(force)
+	if not state.nb then
+		return
+	end
+
+	notify.error("sync_notebook unimplemented")
+end
+
 return M
