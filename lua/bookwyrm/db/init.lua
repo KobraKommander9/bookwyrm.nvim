@@ -1,31 +1,105 @@
 --- @diagnostic disable: missing-fields
 
 --- @class BookwyrmDB
+--- @field db sqlite_db
+--- @field silent boolean?
 local DB = {}
 
 local notify = require("bookwyrm.util.notify")
 
 DB.__index = DB
 
+function DB:__tostring()
+	return "DB"
+end
+
 local MIGRATIONS = {
 	{
 		id = "001_init_db",
 		script = [[
-      CREATE TABLE IF NOT EXISTS notebooks (
-        db_path TEXT NOT NULL UNIQUE,
+      CREATE TABLE notebooks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         is_default INTEGER NOT NULL DEFAULT 0,
-        path TEXT NOT NULL UNIQUE,
+        priority INTEGER NOT NULL DEFAULT 0,
+        root_path TEXT NOT NULL,
         title TEXT NOT NULL
+        UNIQUE(is_default),
+        UNIQUE(root_path)
+      );
+
+      CREATE TABLE notes (
+        fsize INTEGER,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mtime INTEGER,
+        notebook_id INTEGER NOT NULL, 
+        relative_path TEXT NOT NULL,
+        title TEXT,
+        UNIQUE(notebook_id, relative_path),
+        FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE anchors (
+        anchor_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        note_id INTEGER NOT NULL, 
+        type TEXT NOT NULL,
+        
+        start_line INTEGER NOT NULL,
+        start_char INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        end_char INTEGER NOT NULL,
+
+        PRIMARY KEY (note_id, anchor_id),
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE links (
+        context TEXT NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        note_id INTEGER NOT NULL,
+        target_note TEXT,
+        target_note_id INTEGER,
+        target_anchor TEXT,
+        
+        start_line INTEGER NOT NULL,
+        start_char INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        end_char INTEGER NOT NULL,
+
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+        FOREIGN KEY (target_note_id) REFERENCES notes(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE aliases (
+        alias TEXT NOT NULL,
+        note_id INTEGER NOT NULL,
+        PRIMARY KEY (note_id, alias),
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE tags (
+        note_id INTEGER NOT NULL,
+        tag TEXT NOT NULL,
+        PRIMARY KEY (note_id, tag),
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE tasks (
+        content TEXT NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        line INTEGER NOT NULL,
+        note_id INTEGER NOT NULL,
+        status INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
       );
     ]],
 	},
 }
 
---- Opens a connection to the bookwyrm db.
+--- Opens a connection to the notebook db.
 ---
---- @param path string # The registry db path
---- @param silent boolean? # If the notifications should be silenced
+--- @param path string # The path to the db
+--- @param silent boolean? # If notifications should be silenced
 --- @return BookwyrmDB?
 function DB.open(path, silent)
 	local has_sqlite, sqlite = pcall(require, "sqlite.db")
@@ -35,7 +109,13 @@ function DB.open(path, silent)
 
 	local db = sqlite:open(path)
 	if not db then
-		notify.error("db is locked or inaccessible", silent)
+		notify.error("unable to access db", silent)
+		return nil
+	end
+
+	local success = db:eval("PRAGMA foreign_keys = ON;")
+	if not success then
+		notify.error("unable to connect to db", silent)
 		return nil
 	end
 
@@ -49,7 +129,7 @@ function DB.open(path, silent)
 	end)
 
 	if not status then
-		notify.error("failed to migrate registry: " .. tostring(err), silent)
+		notify.error("failed to migrate notebook: " .. tostring(err), silent)
 		return nil
 	end
 
@@ -79,14 +159,14 @@ function DB:migrate()
 end
 
 -------------------------------------------------------------------------------
---- Operations
+--- Notebooks
 -------------------------------------------------------------------------------
 
 --- Deletes the notebook from the db.
 ---
 --- @param id integer # The notebook id
 --- @return BookwyrmBook? # The deleted notebook if successful
-function DB:delete(id)
+function DB:delete_notebook(id)
 	local status, result = pcall(function()
 		local rows = self.db:select("notebooks", { where = { id = id } })
 		assert(rows and #rows > 0, "could not find notebook")
@@ -109,7 +189,7 @@ end
 ---
 --- @param id integer # The notebook id
 --- @return BookwyrmBook?
-function DB:get(id)
+function DB:get_notebook(id)
 	local status, result = pcall(function()
 		local rows = self.db:select("notebooks", { where = { id = id } })
 		assert(rows and #rows == 1)
@@ -126,7 +206,7 @@ end
 --- Gets the default notebook, if any.
 ---
 --- @return BookwyrmBook?
-function DB:get_default()
+function DB:get_default_notebook()
 	local status, result = pcall(function()
 		local rows = self.db:select("notebooks", { where = { is_default = 1 } })
 		assert(rows and #rows == 1)
@@ -143,7 +223,7 @@ end
 --- Lists all registered notebooks.
 ---
 --- @return BookwyrmBook[]
-function DB:list()
+function DB:list_notebooks()
 	local status, result = pcall(function()
 		--- @diagnostic disable-next-line missing-parameter
 		local rows = self.db:select("notebooks")
@@ -164,10 +244,10 @@ end
 ---
 --- @param nb BookwyrmBook # The notebook to register
 --- @return integer? # The id of the created notebook, if successful
-function DB:register(nb)
+function DB:register_notebook(nb)
 	local success, id = self.db:insert("notebooks", {
-		db_path = nb.db_path,
-		path = nb.path,
+		priority = nb.priority,
+		root_path = nb.root_path,
 		title = nb.title,
 	})
 	if not success then
@@ -182,7 +262,7 @@ end
 --- @param title string # The new title
 --- @param id integer # The id of the notebook to rename.
 --- @return boolean # If the operation was a success.
-function DB:rename(title, id)
+function DB:rename_notebook(title, id)
 	return self.db:update("notebooks", {
 		where = { id = id },
 		set = { title = title },
@@ -193,7 +273,7 @@ end
 ---
 --- @param id integer # The id of the notebook to set as default
 --- @return boolean # If the operation was a success.
-function DB:set_default(id)
+function DB:set_default_notebook(id)
 	local status, err = pcall(function()
 		assert(self.db:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
 		assert(self.db:eval("UPDATE notebooks SET is_default = 0 WHERE is_default = 1;"))

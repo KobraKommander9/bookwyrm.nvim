@@ -51,8 +51,8 @@
 --- @field tasks BookwyrmTask[]
 
 --- @class BookwyrmBook
---- @field db_path string # Absolute path to notebook db
 --- @field id integer # Noteboook ID
 --- @field is_default boolean # If the notebook is the default active
---- @field path string # Absolute path to notebook
+--- @field priority integer # The prirotiy for syncing and note matches
+--- @field root_path string # Absolute path to notebook root
 --- @field title string # Notebook title
