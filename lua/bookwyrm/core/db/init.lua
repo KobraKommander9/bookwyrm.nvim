@@ -1,6 +1,5 @@
 --- @diagnostic disable: missing-fields
 
---- @class BookwyrmDB
 local DB = {}
 
 local notify = require("bookwyrm.util.notify")

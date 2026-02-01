@@ -1,9 +1,5 @@
 --- @diagnostic disable: missing-fields
 
---- @class BookwyrmNotebookDB
---- @field book BookwyrmBook
---- @field db sqlite_db
---- @field silent boolean?
 local Notebook = {}
 
 local notify = require("bookwyrm.util.notify")
