@@ -20,9 +20,7 @@ function M.setup(opts)
 	state.cfg.data_path = paths.normalize(state.cfg.data_path)
 	paths.ensure_dir(state.cfg.data_path)
 
-	state.cfg.registry_path = state.cfg.data_path .. "/bookwyrm.sqlite"
-	state.cfg.notebook_dir = state.cfg.data_path .. "/notebooks"
-	paths.ensure_dir(state.cfg.notebook_dir)
+	state.cfg.db_path = state.cfg.data_path .. "/bookwyrm.db"
 
 	local db = require("bookwyrm.core.db").open(state.cfg.registry_path, state.cfg.silent)
 	if not db then

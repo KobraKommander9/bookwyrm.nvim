@@ -1,17 +1,7 @@
---- @class BookwyrmState
---- @field cfg BookwyrmConfig
---- @field db BookwyrmDB?
---- @field nb BookwyrmNotebookDB?
 local M = {}
 
 local nb_db = require("bookwyrm.core.db.notebook")
 local notify = require("bookwyrm.util.notify")
-
---- @class BookwyrmConfig
---- @field data_path string
---- @field registry_path string
---- @field notebook_dir string
---- @field silent boolean?
 
 --- Closes the active notebook.
 function M.close_notebook()
