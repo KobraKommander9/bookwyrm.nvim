@@ -3,13 +3,13 @@
 --- @class BookwyrmDB
 --- @field conn sqlite_db
 --- @field notebooks BookwyrmNotebookDB
+--- @field notes BookwyrmNoteDB
 local DB = {}
 
 local notify = require("bookwyrm.util.notify")
 
 DB.__index = DB
-
-function DB:__tostring()
+DB.__tostring = function()
 	return "DB"
 end
 
@@ -133,6 +133,7 @@ function DB.open(path, silent)
 	end
 
 	instance.notebooks = require("bookwyrm.db.notebook").new(db, silent)
+	instance.notes = require("bookwyrm.db.note").new(db, silent)
 
 	vim.api.nvim_create_autocmd("VimLeavePre", {
 		group = vim.api.nvim_create_augroup("BookwyrmDB", { clear = true }),
