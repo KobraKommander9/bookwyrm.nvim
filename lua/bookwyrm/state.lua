@@ -1,13 +1,20 @@
 --- @class BookwyrmState
 --- @field cfg BookwyrmConfig
 --- @field db BookwyrmDB?
---- @field active_nb BookwyrmBook?
+--- @field nb BookwyrmBook?
 local M = {}
 
 --- @class BookwyrmConfig
 --- @field data_path string
 --- @field db_path string
 --- @field silent boolean?
+
+--- Returns the active notebook id, if any.
+---
+--- @return integer?
+function M.get_active_id()
+	return M.nb and M.nb.id
+end
 
 --- Gets the current db connection.
 ---

@@ -1,4 +1,3 @@
---- @class BookwyrmHooksAPI
 local M = {}
 
 local state = require("bookwyrm.core.state")
