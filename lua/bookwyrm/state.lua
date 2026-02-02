@@ -6,10 +6,16 @@ local M = {}
 
 local notify = require("bookwyrm.util.notify")
 
+--- @class BookwyrmNoteTemplate
+--- @field path string # The path to the new note
+--- @field header string? # The header to write to the new note
+--- @field prefix string? # The prefix to write on each captured line
+
 --- @class BookwyrmConfig
 --- @field data_path string
 --- @field db_path string
 --- @field silent boolean?
+--- @field templates table<string, BookwyrmNoteTemplate>?
 
 --- Ensures that there is an active notebook, falling back to the default if
 --- necessary. This will not guarantee a notebook if no notebook has been

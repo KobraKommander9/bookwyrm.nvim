@@ -11,8 +11,20 @@ M.api = require("bookwyrm.api")
 --- @field data_path string? # The base path for the bookwyrm data
 --- @field disable_hooks boolean? # If true will disable hook registration
 --- @field silent boolean? # If true silences notifications
+--- @field templates table<string, BookwyrmNoteTemplate>? # Note templates
 local defaults = {
 	data_path = vim.fn.stdpath("data") .. "/bookwyrm",
+	templates = {
+		journal = {
+			path = "journals/%Y-%m-%d",
+			header = "### Capture: %H:%M",
+		},
+		todo = {
+			path = "tasks.md",
+			header = "## Added on %Y-%m-%d",
+			prefix = "- [ ] ",
+		},
+	},
 }
 
 --- Initializes the bookwyrm plugin.
