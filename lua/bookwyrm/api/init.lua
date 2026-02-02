@@ -4,13 +4,8 @@ local M = {}
 local notify = require("bookwyrm.util.notify")
 local state = require("bookwyrm.state")
 
---- @class BookwyrmNotebookAPI
-local notebook = require("bookwyrm.api.notebook")
-
---- @class BookwyrmNoteAPI
-local note = require("bookwyrm.api.note")
-
---- @class BookwyrmHooksAPI
+local notebook = require("bookwyrm.api.notebooks")
+local note = require("bookwyrm.api.notes")
 local hooks = require("bookwyrm.api.hooks")
 
 M = vim.tbl_extend("force", M, notebook, note, hooks)
@@ -42,10 +37,18 @@ function M.open_capture(opts)
 		title_pos = "center",
 	})
 
-	vim.keymap.set("n", "<C-s>", function()
+	local function submit()
 		local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 		note.capture_note(lines, opts)
-	end)
+		vim.api.nvim_win_close(win, true)
+	end
+
+	vim.keymap.set("n", state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
+	vim.keymap.set("i", state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
+
+	vim.keymap.set("n", state.cfg.mappings.close, function()
+		vim.api.nvim_win_close(win, true)
+	end, { buffer = buf, desc = "Discard Capture" })
 end
 
 return M

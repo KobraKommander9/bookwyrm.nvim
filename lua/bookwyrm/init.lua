@@ -10,10 +10,15 @@ M.api = require("bookwyrm.api")
 --- @class BookwyrmOpts
 --- @field data_path string? # The base path for the bookwyrm data
 --- @field disable_hooks boolean? # If true will disable hook registration
+--- @field mappings BookwyrmMappings? # Key mapping overrides
 --- @field silent boolean? # If true silences notifications
 --- @field templates table<string, BookwyrmNoteTemplate>? # Note templates
 local defaults = {
 	data_path = vim.fn.stdpath("data") .. "/bookwyrm",
+	mappings = {
+		close = "q",
+		save = "<C-s>",
+	},
 	templates = {
 		journal = {
 			path = "journals/{{date}}",

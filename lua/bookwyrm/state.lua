@@ -15,8 +15,13 @@ local notify = require("bookwyrm.util.notify")
 --- @class BookwyrmConfig
 --- @field data_path string
 --- @field db_path string
+--- @field mappings BookwyrmMappings
 --- @field silent boolean?
 --- @field templates table<string, BookwyrmNoteTemplate>?
+
+--- @class BookwyrmMappings
+--- @field close string # The close key mapping
+--- @field save string # The save key mapping
 
 --- Ensures that there is an active notebook, falling back to the default if
 --- necessary. This will not guarantee a notebook if no notebook has been
