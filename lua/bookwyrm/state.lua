@@ -1,5 +1,6 @@
 --- @class BookwyrmState
 --- @field cfg BookwyrmConfig
+--- @field failed boolean?
 --- @field db BookwyrmDB?
 --- @field nb BookwyrmBook?
 local M = {}
@@ -46,12 +47,19 @@ end
 ---
 --- @return BookwyrmDB
 function M.get_conn()
-	if not M.db then
-		M.db = require("bookwyrm.db").open(M.cfg.db_path, M.cfg.silent)
-		if not M.db then
-			error("Could not get db connection")
-		end
+	if M.db or M.failed then
+		return M.db
 	end
+
+	local status, result = pcall(function()
+		return require("bookwyrm.db").open(M.cfg.db_path, M.cfg.silent)
+	end)
+
+	if not status or not result then
+		M.failed = true
+	end
+
+	M.db = result
 
 	return M.db
 end

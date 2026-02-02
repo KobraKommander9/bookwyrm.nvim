@@ -22,7 +22,7 @@ local MIGRATIONS = {
         is_default INTEGER NOT NULL DEFAULT 0,
         priority INTEGER NOT NULL DEFAULT 0,
         root_path TEXT NOT NULL,
-        title TEXT NOT NULL
+        title TEXT NOT NULL,
         UNIQUE(is_default),
         UNIQUE(root_path)
       );
@@ -120,7 +120,7 @@ function DB.open(path, silent)
 	end
 
 	local instance = setmetatable({
-		db = db,
+		conn = db,
 	}, DB)
 
 	local status, err = pcall(function()
@@ -157,7 +157,7 @@ function DB:migrate()
 	assert(self.conn:eval([[ CREATE TABLE IF NOT EXISTS _migrations (id TEXT PRIMARY KEY); ]]))
 
 	--- @diagnostic disable-next-line missing-parameter
-	local ran = self.db:select("_migrations")
+	local ran = self.conn:select("_migrations")
 
 	local ran_map = {}
 	for _, row in ipairs(ran) do

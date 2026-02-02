@@ -24,7 +24,8 @@ end
 --- @param fname string # The path to normalize
 --- @return string
 function M.normalize_fname(fname)
-	return (fname:gsub("%s+", "_"):gsub(":", "-"))
+	local s = fname:gsub("%s+", "_"):gsub(":", "-"):gsub('[\\/?"<>|*]', "")
+	return s
 end
 
 return M

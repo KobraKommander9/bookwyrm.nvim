@@ -14,8 +14,15 @@ function M.get_active_notebook(skip_db)
 		return state.nb
 	end
 
-	local default = state.get_conn().notebooks:get_default()
-	state.set_active(default)
+	local status, result = pcall(function()
+		return state.get_conn().notebooks:get_default()
+	end)
+
+	if not status then
+		return nil
+	end
+
+	state.set_active(result)
 
 	return state.nb
 end

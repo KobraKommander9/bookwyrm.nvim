@@ -34,7 +34,7 @@ function Notebook:delete(id)
 		assert(rows and #rows > 0, "could not find notebook")
 
 		--- @diagnostic disable-next-line assign-type-mismatch
-		assert(self.db:delete("notebooks", { id = id }))
+		assert(self.conn:delete("notebooks", { id = id }))
 
 		return rows[1]
 	end)
@@ -115,7 +115,7 @@ end
 function Notebook:list()
 	local status, result = pcall(function()
 		--- @diagnostic disable-next-line missing-parameter
-		local rows = self.db:select("notebooks")
+		local rows = self.conn:select("notebooks")
 		assert(rows, "could not list notebooks")
 
 		return rows

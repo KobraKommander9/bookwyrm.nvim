@@ -32,6 +32,7 @@ function M.open_capture(opts)
 		height = height,
 		row = 0,
 		col = vim.o.columns - width,
+		style = "minimal",
 		border = "rounded",
 		title = " Quick Capture [" .. state.nb.title .. "] ",
 		title_pos = "center",
