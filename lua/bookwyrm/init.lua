@@ -16,13 +16,13 @@ local defaults = {
 	data_path = vim.fn.stdpath("data") .. "/bookwyrm",
 	templates = {
 		journal = {
-			path = "journals/%Y-%m-%d",
-			header = "### Capture: %H:%M",
+			path = "journals/{{date}}",
+			header = "### Capture: {{time}}",
 		},
 		todo = {
 			path = "tasks.md",
-			header = "## Added on %Y-%m-%d",
-			prefix = "- [ ] ",
+			header = "## Added on {{date}}",
+			prefix = "- [ ] TODO ",
 		},
 	},
 }

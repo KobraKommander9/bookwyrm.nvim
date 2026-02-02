@@ -10,6 +10,7 @@ local notify = require("bookwyrm.util.notify")
 --- @field path string # The path to the new note
 --- @field header string? # The header to write to the new note
 --- @field prefix string? # The prefix to write on each captured line
+--- @field variables table<string, any>? # User defined variables
 
 --- @class BookwyrmConfig
 --- @field data_path string

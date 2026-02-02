@@ -5,6 +5,36 @@ local notify = require("bookwyrm.util.notify")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
 
+--- @param extra table<string, any>? # Extra variables
+local function get_template_variables(extra)
+	local vars = {
+		date = os.date("%Y-%m-%d"),
+		datetime = os.date("%Y-%m-%d %H:%M"),
+		line = vim.fn.line("#"), -- last line number in previous file
+		notebook = state.nb and state.nb.title or "Unknown",
+		path = vim.fn.expand("#:p"), -- full path of the previous file
+		relpath = vim.fn.expand("#:~"), -- path of previous file relative to home
+		source = vim.fn.expand("#:t"), -- name of the previous file
+		time = os.date("%H:%M"),
+	}
+
+	for key, val in pairs(extra or {}) do
+		if type(val) == "function" then
+			vars[key] = val()
+		else
+			vars[key] = val
+		end
+	end
+
+	return vars
+end
+
+local function parse_template(str, vars)
+	return (str:gsub("{{%s*(.-)%s*}}", function(key)
+		return vars[key] or ("{{" .. key .. "}}")
+	end))
+end
+
 --- @class BookwyrmNoteAPI.CaptureNoteOpts
 --- @field path string? # The path to the new note. Defaults to (template or %Y-%m-%d_%H-%M-%S)
 --- @field tname string? # The note template name
@@ -24,19 +54,20 @@ function M.capture_note(lines, opts)
 	end
 
 	local template = state.cfg.templates[opts.tname or ""] or {}
-	local path = template.path or opts.path or "%Y-%m-%d_%H-%M-%S"
+	local vars = get_template_variables(template.variables)
 
-	local rel_path = os.date(path)
+	local path = template.path or opts.path or "{{datetime}}"
+	path = paths.normalize_fname(path)
+
+	local rel_path = parse_template(path, vars)
 	local full_path = state.nb.root_path .. "/" .. rel_path
 	paths.ensure_dir(vim.fn.fnamemodify(full_path, ":h"))
 
 	local content = { "" }
-	if template.header then
-		table.insert(content, os.date(template.header))
-	end
+	table.insert(content, template.header and parse_template(template.header, vars) or "---")
 
 	for _, line in ipairs(lines) do
-		local formatted = (template.prefix or "") .. line
+		local formatted = (template.prefix and parse_template(template.prefix, vars) or "") .. line
 		table.insert(content, formatted)
 	end
 

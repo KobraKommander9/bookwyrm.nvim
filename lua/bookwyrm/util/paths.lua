@@ -18,4 +18,13 @@ function M.normalize(path)
 	return vim.fs.normalize(path)
 end
 
+--- Normalizes the filename for writing to the filesystem. (Spaces become
+--- underscores and colons become hyphens)
+---
+--- @param fname string # The path to normalize
+--- @return string
+function M.normalize_fname(fname)
+	return (fname:gsub("%s+", "_"):gsub(":", "-"))
+end
+
 return M
