@@ -4,10 +4,24 @@
 --- @field nb BookwyrmBook?
 local M = {}
 
+local notify = require("bookwyrm.util.notify")
+
 --- @class BookwyrmConfig
 --- @field data_path string
 --- @field db_path string
 --- @field silent boolean?
+
+--- Ensures that there is an active notebook, falling back to the default if
+--- necessary. This will not guarantee a notebook if no notebook has been
+--- registered.
+function M.ensure_active()
+	if M.nb then
+		return
+	end
+
+	local default = M.get_conn().notebooks:get_default()
+	M.set_active(default)
+end
 
 --- Returns the active notebook id, if any.
 ---
@@ -28,6 +42,20 @@ function M.get_conn()
 	end
 
 	return M.db
+end
+
+--- Sets the active notebook.
+---
+--- @param nb? BookwyrmBook
+function M.set_active(nb)
+	if not nb then
+		return
+	end
+
+	if not M.nb or M.nb.id ~= nb.id then
+		M.nb = nb
+		notify.info("Bookwyrm Switched to " .. M.nb.title, M.cfg.silent)
+	end
 end
 
 return M

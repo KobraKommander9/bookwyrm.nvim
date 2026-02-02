@@ -1,7 +1,7 @@
 local M = {}
 
 local function notify(msg, level, silent)
-	if silent then
+	if silent == true then
 		return
 	end
 

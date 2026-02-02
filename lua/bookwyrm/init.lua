@@ -1,5 +1,6 @@
 local M = {}
 
+local hooks = require("bookwyrm.hooks")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
 
@@ -8,6 +9,7 @@ M.api = require("bookwyrm.api")
 
 --- @class BookwyrmOpts
 --- @field data_path string? # The base path for the bookwyrm data
+--- @field disable_hooks boolean? # If true will disable hook registration
 --- @field silent boolean? # If true silences notifications
 local defaults = {
 	data_path = vim.fn.stdpath("data") .. "/bookwyrm",
@@ -17,12 +19,18 @@ local defaults = {
 ---
 --- @param opts BookwyrmOpts
 function M.setup(opts)
-	state.cfg = vim.tbl_deep_extend("force", defaults, opts or {}) --[[@as BookwyrmConfig]]
+	opts = opts or {}
+
+	state.cfg = vim.tbl_deep_extend("force", defaults, {}) --[[@as BookwyrmConfig]]
 
 	state.cfg.data_path = paths.normalize(state.cfg.data_path)
 	paths.ensure_dir(state.cfg.data_path)
 
 	state.cfg.db_path = state.cfg.data_path .. "/bookwyrm.db"
+
+	if not opts.disable_hooks then
+		hooks.setup_context_switcher()
+	end
 end
 
 return M

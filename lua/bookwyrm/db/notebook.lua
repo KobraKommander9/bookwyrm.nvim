@@ -65,6 +65,33 @@ function Notebook:get(id)
 	return result
 end
 
+--- Gets the notebook whose root contains the provided path.
+---
+--- @param path string # The path to check for
+--- @return BookwyrmBook?
+function Notebook:get_by_path(path)
+	local status, result = pcall(function()
+		local rows = self.conn:eval(
+			[[
+      SELECT * FROM notebooks
+      WHERE :path || '/' LIKE root_path || '%'
+      ORDER BY LENGTH(root_path) DESC
+      LIMIT 1
+    ]],
+			{ path = path }
+		)
+		assert(rows and #rows > 1)
+
+		return rows[1]
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
 --- Gets the default notebook, if any.
 ---
 --- @return BookwyrmBook?

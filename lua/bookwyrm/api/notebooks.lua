@@ -15,11 +15,23 @@ function M.get_active_notebook(skip_db)
 	end
 
 	local default = state.get_conn().notebooks:get_default()
-	if default then
-		state.nb = default
-	end
+	state.set_active(default)
 
 	return state.nb
+end
+
+--- Returns the notebook whose root owns the provided path, if any.
+---
+--- @param path string? # The path to check, defaults to the current file path.
+--- @return BookwyrmBook?
+function M.get_notebook_by_path(path)
+	path = path or vim.api.nvim_buf_get_name(0)
+	if not path or path == "" then
+		return nil
+	end
+
+	path = paths.normalize(path)
+	return state.get_conn().notebooks:get_by_path(path)
 end
 
 --- Lists notebooks.
@@ -62,8 +74,7 @@ function M.register_notebook(opts)
 	end
 
 	nb.id = id
-
-	state.nb = nb
+	state.set_active(nb)
 
 	return nb
 end
@@ -112,7 +123,8 @@ function M.switch_to_notebook(id)
 		return state.nb
 	end
 
-	state.nb = state.get_conn().notebooks:get(id)
+	local nb = state.get_conn().notebooks:get(id)
+	state.set_active(nb)
 
 	return state.nb
 end
