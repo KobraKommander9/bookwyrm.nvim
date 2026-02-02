@@ -13,10 +13,15 @@ local notify = require("bookwyrm.util.notify")
 --- @field prefix string? # The prefix to write on each captured line
 --- @field variables table<string, any>? # User defined variables
 
+--- @class BookwyrmCaptureNoteOpts
+--- @field buffer table? # The buffer options for the floating note capture
+--- @field window table? # The window options for the floating note capture
+
 --- @class BookwyrmConfig
 --- @field data_path string
 --- @field db_path string
 --- @field mappings BookwyrmMappings
+--- @field note_capture BookwyrmCaptureNoteOpts
 --- @field silent boolean?
 --- @field templates table<string, BookwyrmNoteTemplate>?
 

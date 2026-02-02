@@ -10,10 +10,16 @@ local hooks = require("bookwyrm.api.hooks")
 
 M = vim.tbl_extend("force", M, notebook, note, hooks)
 
+--- @class BookwyrmAPI.OpenCaptureOpts: BookwyrmNoteAPI.CaptureNoteOpts, BookwyrmCaptureNoteOpts
+
 --- Opens a floating buffer for capturing a new note.
 ---
---- @param opts BookwyrmNoteAPI.CaptureNoteOpts?
+--- @param opts BookwyrmAPI.OpenCaptureOpts?
 function M.open_capture(opts)
+	opts = vim.tbl_deep_extend("force", state.cfg.note_capture, opts or {}) --[[@as BookwyrmAPI.OpenCaptureOpts]]
+	opts.buffer = opts.buffer or {}
+	opts.window = opts.window or {}
+
 	state.ensure_active()
 	if not state.nb then
 		notify.error("No notebook available")
@@ -21,8 +27,9 @@ function M.open_capture(opts)
 	end
 
 	local buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_set_option_value("filetype", "markdown", { buf = buf })
-	vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+	for k, v in pairs(opts.buffer) do
+		vim.api.nvim_set_option_value(k, v, { buf = buf })
+	end
 
 	local width = math.ceil(vim.o.columns * 0.4)
 	local height = math.ceil(vim.o.lines * 0.3)
@@ -37,6 +44,10 @@ function M.open_capture(opts)
 		title = " Quick Capture [" .. state.nb.title .. "] ",
 		title_pos = "center",
 	})
+
+	for k, v in pairs(opts.window) do
+		vim.api.nvim_set_option_value(k, v, { win = win })
+	end
 
 	local function submit()
 		local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)

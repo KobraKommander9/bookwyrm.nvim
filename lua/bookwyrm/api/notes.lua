@@ -59,12 +59,12 @@ function M.capture_note(lines, opts)
 	local path = template.path or opts.path or "{{datetime}}"
 	path = paths.normalize_fname(path)
 
-	local rel_path = parse_template(path, vars)
+	local rel_path = paths.normalize_fname(parse_template(path, vars)) .. ".md"
 	local full_path = state.nb.root_path .. "/" .. rel_path
 	paths.ensure_dir(vim.fn.fnamemodify(full_path, ":h"))
 
 	local content = { "" }
-	table.insert(content, template.header and parse_template(template.header, vars) or "---")
+	table.insert(content, template.header and parse_template(template.header, vars) or "---\n")
 
 	for _, line in ipairs(lines) do
 		local formatted = (template.prefix and parse_template(template.prefix, vars) or "") .. line

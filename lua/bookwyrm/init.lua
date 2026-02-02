@@ -11,6 +11,7 @@ M.api = require("bookwyrm.api")
 --- @field data_path string? # The base path for the bookwyrm data
 --- @field disable_hooks boolean? # If true will disable hook registration
 --- @field mappings BookwyrmMappings? # Key mapping overrides
+--- @field note_capture BookwyrmCaptureNoteOpts? # Capture note options
 --- @field silent boolean? # If true silences notifications
 --- @field templates table<string, BookwyrmNoteTemplate>? # Note templates
 local defaults = {
@@ -18,6 +19,19 @@ local defaults = {
 	mappings = {
 		close = "q",
 		save = "<C-s>",
+	},
+	note_capture = {
+		buffer = {
+			bufhidden = "wipe",
+			filetype = "markdown",
+		},
+		window = {
+			cursorline = true,
+			foldcolumn = "0",
+			number = true,
+			numberwidth = 2,
+			signcolumn = "no",
+		},
 	},
 	templates = {
 		journal = {
@@ -37,8 +51,7 @@ local defaults = {
 --- @param opts BookwyrmOpts
 function M.setup(opts)
 	opts = opts or {}
-
-	state.cfg = vim.tbl_deep_extend("force", defaults, {}) --[[@as BookwyrmConfig]]
+	state.cfg = vim.tbl_deep_extend("force", defaults, opts) --[[@as BookwyrmConfig]]
 
 	state.cfg.data_path = paths.normalize(state.cfg.data_path)
 	paths.ensure_dir(state.cfg.data_path)
