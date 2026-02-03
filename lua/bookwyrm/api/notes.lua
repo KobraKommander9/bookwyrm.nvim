@@ -81,4 +81,31 @@ function M.capture_note(lines, opts)
 	end
 end
 
+--- Syncs the file with the db.
+---
+--- @param path string? # The path to the file, defualts to the current file.
+function M.sync_file(path)
+	path = path or vim.api.nvim_buf_get_name(0)
+	if not path or path == "" then
+		return
+	end
+	path = paths.normalize(path)
+
+	local ext = vim.fn.fnamemodify(path, ":e")
+	if ext ~= "md" then
+		return
+	end
+
+	local nb = state.get_conn().notebooks:get_by_path(path)
+	if not nb then
+		return
+	end
+
+	local root = nb.root_path
+	if not root:match("/$") then
+		root = root .. "/"
+	end
+	local rel_path = path:sub(#root + 1)
+end
+
 return M

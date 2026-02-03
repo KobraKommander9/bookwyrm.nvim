@@ -112,7 +112,7 @@ local function parse_anchors(bufnr, linenr, line, active_starts, data)
 		end
 
 		-- not a block anchor
-		return nil
+		return prefix .. "^" .. id
 	end)
 
 	return line
@@ -269,6 +269,29 @@ function M.parse_buffer(bufnr)
 
 	deduplicate_metadata(data)
 
+	return data
+end
+
+--- Parses the file to produce a BookwyrmNote artifact.
+---
+--- @param path string # The path to the file to parse.
+--- @return BookwyrmNote
+function M.parse_file(path)
+	local bufnr = vim.api.nvim_create_buf(false, true)
+
+	local lines = vim.fn.readfile(path)
+	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+
+	local data
+	vim.api.nvim_buf_call(bufnr, function()
+		vim.noautocmd(function()
+			vim.api.nvim_set_option_value("filetype", "markdown", { buf = bufnr })
+		end)
+
+		data = M.parse_buffer(bufnr)
+	end)
+
+	vim.api.nvim_buf_delete(bufnr, { force = true })
 	return data
 end
 
