@@ -41,6 +41,7 @@ local function parse_anchors(bufnr, linenr, line, active_starts, data)
 					start = { line = start_data.row, character = start_data.col },
 					finish = { line = linenr, character = end_col - 1 },
 				},
+				type = "range",
 			})
 
 			active_starts[id] = nil
@@ -58,6 +59,7 @@ local function parse_anchors(bufnr, linenr, line, active_starts, data)
 				start = { line = linenr, character = start_col - 1 },
 				finish = { line = linenr, character = end_col - 1 },
 			},
+			type = "span",
 		})
 
 		return string.rep(" ", end_col - start_col)
@@ -106,6 +108,7 @@ local function parse_anchors(bufnr, linenr, line, active_starts, data)
 					start = final_start,
 					finish = { line = linenr, character = end_col - 1 },
 				},
+				type = "block",
 			})
 
 			return prefix .. string.rep(" ", end_col - (start_col + #prefix))

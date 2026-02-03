@@ -17,14 +17,17 @@
 --- @field content string # Anchor content
 --- @field loc Range # Anchor location
 --- @field note_id integer # ID of linked note
+--- @field type "range"|"span"|"block" # The type of anchor
 
 --- @class BookwyrmLink
 --- @field alias string? # The link alias
 --- @field context string # Link context
+--- @field id integer # The link id
 --- @field loc Range # Link location
---- @field note_id integer # ID of linked note
+--- @field note_id integer # ID of owning note
 --- @field target_anchor string? # Target anchor id, if any
 --- @field target_note string? # Title of target note
+--- @field target_note_id integer? # The id of the target note
 
 --- @class BookwyrmTag
 --- @field note_id integer # ID of aliased note
@@ -32,16 +35,17 @@
 
 --- @class BookwyrmTask
 --- @field content string # Task content
---- @field status integer # Task status
 --- @field id integer # Task ID
 --- @field line integer # Line nr of task in note
 --- @field note_id integer # ID of note where task is located
+--- @field status integer # Task status
 
 --- @class BookwyrmNote
+--- @field fsize integer # The size of the file
 --- @field id integer # Note ID
 --- @field mtime integer # The last modified time
---- @field path string # Absolute note path
---- @field size integer # The size of the file
+--- @field notebook_id integer # The id of the owning notebook
+--- @field relative_path string # The relative path within the notebook
 --- @field title string # Title of note
 ---
 --- @field aliases BookwyrmAlias[]

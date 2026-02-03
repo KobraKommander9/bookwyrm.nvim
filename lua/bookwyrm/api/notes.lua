@@ -2,6 +2,7 @@
 local M = {}
 
 local notify = require("bookwyrm.util.notify")
+local parser = require("bookwyrm.parser")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
 
@@ -81,6 +82,34 @@ function M.capture_note(lines, opts)
 	end
 end
 
+--- Syncs the buffer with the db.
+---
+--- @param bufnr integer? # The buffer number, defualts to the current buffer.
+function M.sync_buffer(bufnr)
+	bufnr = bufnr or 0
+	if vim.bo[bufnr].filetype ~= "markdown" then
+		return
+	end
+
+	local path = vim.api.nvim_buf_get_name(bufnr)
+	if not path or path == "" then
+		return
+	end
+
+	local nb = state.get_conn().notebooks:get_by_path(path)
+	if not nb then
+		return
+	end
+
+	local root = nb.root_path .. "/"
+	local rel_path = path:sub(#root + 1)
+
+	local note = parser.parse_buffer(bufnr)
+	note.relative_path = rel_path
+
+	state.get_conn().notes:save(note)
+end
+
 --- Syncs the file with the db.
 ---
 --- @param path string? # The path to the file, defualts to the current file.
@@ -104,7 +133,10 @@ function M.sync_file(path)
 	local root = nb.root_path .. "/"
 	local rel_path = path:sub(#root + 1)
 
-	-- TODO: finish this
+	local note = parser.parse_file(path)
+	note.relative_path = rel_path
+
+	state.get_conn().notes:save(note)
 end
 
 return M
