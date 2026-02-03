@@ -101,11 +101,10 @@ function M.sync_file(path)
 		return
 	end
 
-	local root = nb.root_path
-	if not root:match("/$") then
-		root = root .. "/"
-	end
+	local root = nb.root_path .. "/"
 	local rel_path = path:sub(#root + 1)
+
+	-- TODO: finish this
 end
 
 return M
