@@ -3,6 +3,10 @@ if vim.g.loaded_bookwyrm then
 end
 vim.g.loaded_bookwyrm = true
 
+vim.api.nvim_create_user_command("BookwyrmSync", function()
+	require("bookwyrm").api.sync_db()
+end, { desc = "Sync bookwyrm db with filesystem" })
+
 -------------------------------------------------------------------------------
 --- Notebooks
 -------------------------------------------------------------------------------
