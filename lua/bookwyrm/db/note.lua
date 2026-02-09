@@ -42,42 +42,46 @@ end
 ---
 --- 	return result
 --- end
+
+--- Lists all notes.
 ---
---- --- Lists all notes.
---- ---
---- --- @return BookwyrmNote[]
---- function Note:list()
---- 	local status, result = pcall(function()
---- 		--- @diagnostic disable-next-line missing-parameter
---- 		local rows = self.db:select("notes")
---- 		assert(rows, "could not list notes")
----
---- 		return rows
---- 	end)
----
---- 	if not status then
---- 		notify.error(tostring(result), self.silent)
---- 		return {}
---- 	end
----
---- 	return result
---- end
+--- @param nb_id integer? # The id of the notebook to search in, defaults to all notebooks.
+--- @return BookwyrmNote[]
+function Note:list(nb_id)
+	local query = nb_id and { where = { notebook_id = nb_id } }
+
+	local status, result = pcall(function()
+		--- @diagnostic disable-next-line param-type-mismatch
+		local rows = self.conn:select("notes", query)
+		assert(rows, "could not list notes")
+
+		return rows
+	end)
+
+	if not status then
+		notify.error(tostring(result), self.silent)
+		return {}
+	end
+
+	return result
+end
 
 --- Saves a note.
 ---
+--- @param nb_id integer # The id of the notebook to save the note to.
 --- @param nb BookwyrmNote # The note to save
 --- @return BookwyrmNote?
-function Note:save(nb)
+function Note:save(nb_id, nb)
 	local status, result = pcall(function()
 		assert(self.conn:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
 
 		local rows = self.conn:eval(
 			[[
-       INSERT INTO notes (relative_path, title) VALUES (:relative_path, :title)
-       ON CONFLICT(relative_path) DO UPDATE SET title = excluded.title
+       INSERT INTO notes (notebook_id, relative_path, title) VALUES (:nb_id, :relative_path, :title)
+       ON CONFLICT(notebook_id, relative_path) DO UPDATE SET title = excluded.title
        RETURNING id
      ]],
-			{ relative_path = nb.relative_path, title = nb.title }
+			{ nb_id = nb_id, relative_path = nb.relative_path, title = nb.title }
 		)
 
 		if not rows or #rows < 1 then

@@ -85,6 +85,18 @@ function M.capture_note(lines, opts)
 	end
 end
 
+--- Lists all registered notes.
+---
+--- @return BookwyrmNote[]
+function M.list_notes()
+	state.ensure_active()
+	if not state.nb then
+		return {}
+	end
+
+	return state.get_conn().notes:list()
+end
+
 --- Syncs the buffer with the db.
 ---
 --- @param bufnr integer? # The buffer number, defualts to the current buffer.
