@@ -65,7 +65,10 @@ function M.capture_note(lines, opts)
 	paths.ensure_dir(vim.fn.fnamemodify(full_path, ":h"))
 
 	local content = { "" }
-	table.insert(content, template.header and parse_template(template.header, vars) or "---\n")
+
+	if template.header then
+		table.insert(content, template.header ~= "" and parse_template(template.header, vars) or "---\n")
+	end
 
 	for _, line in ipairs(lines) do
 		local formatted = (template.prefix and parse_template(template.prefix, vars) or "") .. line

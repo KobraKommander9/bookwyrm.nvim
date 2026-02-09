@@ -35,12 +35,12 @@ local defaults = {
 	},
 	templates = {
 		journal = {
-			path = "journals/{{date}}",
 			header = "### Capture: {{time}}",
+			path = "journals/{{date}}",
 		},
 		todo = {
+			header = false,
 			path = "tasks.md",
-			header = "## Added on {{date}}",
 			prefix = "- [ ] TODO ",
 		},
 	},
