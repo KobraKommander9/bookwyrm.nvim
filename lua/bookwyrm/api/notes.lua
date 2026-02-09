@@ -87,14 +87,15 @@ end
 
 --- Lists all registered notes.
 ---
+--- @param nb_id integer? # The id of the notebook to list in, defaults to all notebooks.
 --- @return BookwyrmNote[]
-function M.list_notes()
+function M.list_notes(nb_id)
 	state.ensure_active()
 	if not state.nb then
 		return {}
 	end
 
-	return state.get_conn().notes:list()
+	return state.get_conn().notes:list(nb_id)
 end
 
 --- Syncs the buffer with the db.
@@ -122,7 +123,7 @@ function M.sync_buffer(bufnr)
 	local note = parser.parse_buffer(bufnr)
 	note.relative_path = rel_path
 
-	state.get_conn().notes:save(note)
+	state.get_conn().notes:save(nb.id, note)
 end
 
 --- Syncs the file with the db.
@@ -151,7 +152,7 @@ function M.sync_file(path)
 	local note = parser.parse_file(path)
 	note.relative_path = rel_path
 
-	state.get_conn().notes:save(note)
+	state.get_conn().notes:save(nb.id, note)
 end
 
 return M
