@@ -1,152 +1,81 @@
 local M = {}
 
---- Parses anchors from the given line and appends them to the data. Anchors
---- can be of 3 main formats, with the ids consisting of alphanumeric, hyphen,
---- or undescore characters:
----   - Multiline range: \[^start:anchor-id\] ... \[^end:anchor-id\]
----   - Span: \[Content\]^anchor-id
----   - Block: ^anchor-id
----
---- Note: block anchors will anchor the text from the start of the paragraph,
----   or line if not found, up until the anchor itself.
----
---- @param bufnr integer # The buffer number
---- @param linenr integer # The line number (0 indexed)
---- @param line string # The line to parse
---- @param active_starts table # The list of currently active ranges
---- @param data BookwyrmNote # The note to populate
---- @return string # The masked line with parsed data stripped
-local function parse_anchors(bufnr, linenr, line, active_starts, data)
-	-- multiline range anchors
-	line = line:gsub("()%[%^start:([%w%-_]+)%]()", function(start_col, id, end_col)
-		active_starts[id] = {
-			row = linenr,
-			col = start_col - 1,
-			end_col = end_col - 1,
-		}
-
-		return string.rep(" ", end_col - start_col)
-	end)
-
-	line = line:gsub("()%[%^end:([%w%-_]+)%]()", function(start_col, id, end_col)
-		local start_data = active_starts[id]
-		if start_data then
-			local lines =
-				vim.api.nvim_buf_get_text(bufnr, start_data.row, start_data.end_col, linenr, start_col - 1, {})
-
-			table.insert(data.anchors, {
-				anchor_id = id,
-				content = table.concat(lines, "\n"),
-				loc = {
-					start = { line = start_data.row, character = start_data.col },
-					finish = { line = linenr, character = end_col - 1 },
-				},
-				type = "range",
-			})
-
-			active_starts[id] = nil
-		end
-
-		return string.rep(" ", end_col - start_col)
-	end)
-
-	-- span anchors: [...]^id
-	line = line:gsub("()(%b[])%^([%w%-_]+)()", function(start_col, content, id, end_col)
-		table.insert(data.anchors, {
-			anchor_id = id,
-			content = content:sub(2, -2), -- strip [ and ]
-			loc = {
-				start = { line = linenr, character = start_col - 1 },
-				finish = { line = linenr, character = end_col - 1 },
-			},
-			type = "span",
-		})
-
-		return string.rep(" ", end_col - start_col)
-	end)
-
-	-- block anchor: <beginning of block>^id
-	line = line:gsub("()(.?)%^([%w%-_]+)()", function(start_col, prefix, id, end_col)
-		if prefix == "" or prefix:match("%s") then
-			local anchor_col = (prefix == "") and (start_col - 1) or start_col
-
-			local final_start = { line = linenr, character = 0 }
-			local block_text = line:sub(1, anchor_col)
-
-			local node = vim.treesitter.get_node({ bufnr = bufnr, pos = { linenr, anchor_col } })
-			if node then
-				--- @type TSNode?
-				local curr = node
-
-				while curr do
-					local type = curr:type()
-
-					if type:find("paragraph") or type:find("section") or type:find("list_item") then
-						local s_row, s_col, _, _ = curr:range()
-						final_start = { line = s_row, character = s_col }
-
-						local content_lines = {}
-						if not (s_row == linenr and s_col == anchor_col) then
-							content_lines = vim.api.nvim_buf_get_text(bufnr, s_row, s_col, linenr, anchor_col, {})
-						end
-
-						if #content_lines > 0 then
-							block_text = table.concat(content_lines, "\n")
-						end
-
-						break
-					end
-
-					curr = curr:parent()
-				end
-			end
-
-			table.insert(data.anchors, {
-				anchor_id = id,
-				content = block_text,
-				loc = {
-					start = final_start,
-					finish = { line = linenr, character = end_col - 1 },
-				},
-				type = "block",
-			})
-
-			return prefix .. string.rep(" ", end_col - (start_col + #prefix))
-		end
-
-		-- not a block anchor
-		return prefix .. "^" .. id
-	end)
-
-	return line
+--- Trims leading and trailing whitespace from a string.
+--- @param s string
+--- @return string
+local function trim(s)
+	return s:match("^%s*(.-)%s*$")
 end
 
---- Parses links from the line and appends them to the note. Links are expected
---- to be of the form \[\[Note#Anchor|Alias\]\], where each part is optional.
----
---- @param linenr integer # The line number (0 indexed)
---- @param line string # The line to parse
---- @param data BookwyrmNote # The note to populate
---- @return string # The masked line with parsed data stripped
-local function parse_links(linenr, line, data)
-	local id_pattern = "^[%w%-_]+$"
+--- Extracts #tagname tokens from a string.
+--- @param s string
+--- @return string[]
+local function extract_inline_tags(s)
+	local tags = {}
+	for tag in s:gmatch("#([%w_%-]+)") do
+		table.insert(tags, tag)
+	end
+	return tags
+end
 
+--- Parses a single YAML front-matter line and populates result.
+--- @param line string
+--- @param result ParseResult
+local function parse_frontmatter_line(line, result)
+	-- aliases: [a, b, c] or alias: [a, b, c]
+	local aliases = line:match("^aliases?:%s*%[?(.+)%]?$")
+	if aliases then
+		for a in aliases:gmatch("([^,]+)") do
+			local alias = trim(a):gsub("^([\"'])(.*)%1$", "%2")
+			if alias ~= "" then
+				table.insert(result.aliases, { alias = alias })
+			end
+		end
+		return
+	end
+
+	-- tags: [t1, t2]
+	local tags = line:match("^tags:%s*%[?(.+)%]?$")
+	if tags then
+		for t in tags:gmatch("([^,]+)") do
+			local tag = trim(t):gsub("^#", "")
+			if tag ~= "" then
+				table.insert(result.tags, { tag = tag })
+			end
+		end
+	end
+end
+
+--- Parses wiki-style links from the line, appends to result, and returns the
+--- line with matched regions replaced by spaces (so downstream parsers don't
+--- double-count the same text).
+---
+--- Supported forms:
+---   [[target]]
+---   [[target|alias]]
+---   [[note#anchor]]
+---   [[note#anchor|alias]]
+---
+--- @param linenr integer # 0-indexed line number
+--- @param line string
+--- @param result ParseResult
+--- @return string # masked line
+local function parse_links(linenr, line, result)
 	line = line:gsub("()%[%[(.-)%]%]()", function(start_pos, raw_link, end_pos)
 		local target, alias = raw_link:match("([^|]+)|?(.*)")
 		target = target or ""
+		alias = (alias ~= "") and alias or nil
 
 		local note, anchor = target:match("([^#]*)#?(.*)")
+		note = trim(note or "")
+		anchor = trim(anchor or "")
 
-		note = vim.trim(note or "")
-		anchor = vim.trim(anchor or "")
-
-		if anchor ~= "" and not anchor:match(id_pattern) then
+		if anchor ~= "" and not anchor:match("^[%w%-_]+$") then
 			anchor = ""
 		end
 
-		table.insert(data.links, {
-			alias = (alias and alias ~= "") and vim.trim(alias) or nil,
-			context = line,
+		table.insert(result.links, {
+			alias = alias and trim(alias) or nil,
 			loc = {
 				start = { line = linenr, character = start_pos - 1 },
 				finish = { line = linenr, character = end_pos - 1 },
@@ -161,141 +90,222 @@ local function parse_links(linenr, line, data)
 	return line
 end
 
---- Parses metadata from the note metadata
+--- Parses a task line (- [ ] or - [x]) and appends to result.
+--- Extracts any #tags from the task content.
 ---
---- @param line string # The line in the metadata block
---- @param data BookwyrmNote # The note to populate
-local function parse_metadata(line, data)
-	local title = line:match("^title:%s*(.+)$")
-	if title then
-		data.title = vim.trim(title):gsub("^([\"'])(.*)%1$", "%2")
-	end
-
-	local aliases = line:match("^alias:%s*%[?(.+)%]?(.*)$") or line:match("^aliases:%s*%[?(.+)%]?(.*)$")
-	if aliases then
-		for a in aliases:gmatch("([^,]+)") do
-			table.insert(data.aliases, {
-				alias = vim.trim(a):gsub("^([\"'])(.*)%1$", "%2"),
-			})
-		end
-	end
-
-	local tags = line:match("^tags:%s*%[?(.+)%]?(.*)$")
-	if tags then
-		for t in tags:gmatch("([^,]+)") do
-			table.insert(data.tags, {
-				tag = vim.trim(t):gsub("^#", ""),
-			})
-		end
-	end
-end
-
---- Parses a task from the line, if any. Tasks are expected to be of the form
---- '- [ ] Content' or '- [x] Content'.
----
---- @param linenr integer # The line number (0 indexed)
---- @param line string # The line to parse
---- @param data BookwyrmNote # The note to populate
-local function parse_task(linenr, line, data)
+--- @param linenr integer # 0-indexed line number
+--- @param line string
+--- @param result ParseResult
+local function parse_task(linenr, line, result)
 	local status, content = line:match("^%s*-%s*%[([%sxX])%]%s*(.*)$")
 	if status then
-		table.insert(data.tasks, {
-			content = vim.trim(content),
+		local tags = extract_inline_tags(content)
+		table.insert(result.tasks, {
+			content = trim(content),
 			line = linenr,
 			status = (status:lower() == "x") and 1 or 0,
+			tags = tags,
 		})
 	end
 end
 
---- Deduplicates tag and alias metadata from the note.
+--- Parses anchor markers from the (masked) line and appends to result.
+--- Returns the line with anchor markers replaced by spaces.
 ---
---- @param data BookwyrmNote
-local function deduplicate_metadata(data)
+--- Supported forms:
+---   Range:  [^start:id] ... [^end:id]
+---   Span:   [content]^id
+---   Block:  ^id  (standalone or preceded by whitespace)
+---
+--- @param linenr integer # 0-indexed line number
+--- @param lines string[] # full list of buffer lines (1-indexed)
+--- @param line string # masked line
+--- @param active_starts table # mutable table tracking open range anchors
+--- @param result ParseResult
+--- @return string # further masked line
+local function parse_anchors(linenr, lines, line, active_starts, result)
+	-- Range start: [^start:id]
+	line = line:gsub("()%[%^start:([%w%-_]+)%]()", function(start_col, id, end_col)
+		active_starts[id] = {
+			row = linenr,
+			col = start_col - 1,
+			end_col = end_col - 1,
+		}
+		return string.rep(" ", end_col - start_col)
+	end)
+
+	-- Range end: [^end:id]
+	line = line:gsub("()%[%^end:([%w%-_]+)%]()", function(start_col, id, end_col)
+		local s = active_starts[id]
+		if s then
+			local parts = {}
+			for row = s.row, linenr do
+				local l = lines[row + 1] or ""
+				if row == s.row and row == linenr then
+					table.insert(parts, l:sub(s.end_col + 1, start_col - 2))
+				elseif row == s.row then
+					table.insert(parts, l:sub(s.end_col + 1))
+				elseif row == linenr then
+					table.insert(parts, l:sub(1, start_col - 2))
+				else
+					table.insert(parts, l)
+				end
+			end
+
+			table.insert(result.anchors, {
+				anchor_id = id,
+				content = table.concat(parts, "\n"),
+				loc = {
+					start = { line = s.row, character = s.col },
+					finish = { line = linenr, character = end_col - 1 },
+				},
+				type = "range",
+			})
+
+			active_starts[id] = nil
+		end
+		return string.rep(" ", end_col - start_col)
+	end)
+
+	-- Span anchor: [content]^id
+	line = line:gsub("()(%b[])%^([%w%-_]+)()", function(start_col, content, id, end_col)
+		table.insert(result.anchors, {
+			anchor_id = id,
+			content = content:sub(2, -2),
+			loc = {
+				start = { line = linenr, character = start_col - 1 },
+				finish = { line = linenr, character = end_col - 1 },
+			},
+			type = "span",
+		})
+		return string.rep(" ", end_col - start_col)
+	end)
+
+	-- Block anchor: ^id (standalone or preceded by whitespace)
+	line = line:gsub("()(.?)%^([%w%-_]+)()", function(start_col, prefix, id, end_col)
+		if prefix == "" or prefix:match("%s") then
+			local anchor_col = (prefix == "") and (start_col - 1) or start_col
+
+			-- Scan backward to find the start of the paragraph (stop at blank line)
+			local para_start_row = linenr
+			for row = linenr - 1, 0, -1 do
+				if (lines[row + 1] or ""):match("^%s*$") then
+					break
+				end
+				para_start_row = row
+			end
+
+			local parts = {}
+			for row = para_start_row, linenr do
+				local l = lines[row + 1] or ""
+				if row == linenr then
+					table.insert(parts, l:sub(1, anchor_col))
+				else
+					table.insert(parts, l)
+				end
+			end
+
+			table.insert(result.anchors, {
+				anchor_id = id,
+				content = table.concat(parts, "\n"),
+				loc = {
+					start = { line = para_start_row, character = 0 },
+					finish = { line = linenr, character = end_col - 1 },
+				},
+				type = "block",
+			})
+
+			return prefix .. string.rep(" ", end_col - (start_col + #prefix))
+		end
+
+		-- Not a block anchor
+		return prefix .. "^" .. id
+	end)
+
+	return line
+end
+
+--- Deduplicates tags and aliases in place.
+--- @param result ParseResult
+local function deduplicate(result)
 	local seen_tags = {}
 	local unique_tags = {}
-	for _, item in ipairs(data.tags) do
+	for _, item in ipairs(result.tags) do
 		if not seen_tags[item.tag] then
 			table.insert(unique_tags, item)
 			seen_tags[item.tag] = true
 		end
 	end
-	data.tags = unique_tags
+	result.tags = unique_tags
 
 	local seen_aliases = {}
 	local unique_aliases = {}
-	for _, item in ipairs(data.aliases) do
+	for _, item in ipairs(result.aliases) do
 		if not seen_aliases[item.alias] then
 			table.insert(unique_aliases, item)
 			seen_aliases[item.alias] = true
 		end
 	end
-	data.aliases = unique_aliases
+	result.aliases = unique_aliases
 end
 
---- Parses the buffer to produce a BookwyrmNote artifact.
+--- Parses a list of buffer lines and returns structured data.
 ---
---- @param bufnr integer # The buffer number of the buffer being parsed
---- @return BookwyrmNote
-function M.parse_buffer(bufnr)
-	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-	local path = vim.api.nvim_buf_get_name(bufnr)
-
-	local data = {
-		aliases = {},
-		anchors = {},
+--- This function is stateless and pure: it makes no vim.* calls and performs
+--- no I/O. It can be tested with plain Lua.
+---
+--- @param lines string[] # Buffer lines, 1-indexed (as returned by nvim_buf_get_lines)
+--- @return ParseResult
+function M.parse(lines)
+	--- @type ParseResult
+	local result = {
 		links = {},
+		anchors = {},
 		tags = {},
 		tasks = {},
-
-		path = path,
-		title = vim.fn.fnamemodify(path, ":t:r"),
+		aliases = {},
 	}
 
-	local inside_metadata = lines[1] == "---"
-	local start = inside_metadata and 2 or 1
+	local in_frontmatter = lines[1] == "---"
+	local active_starts = {}
 
-	local active_anchors = {}
+	-- When the first line is "---" we skip it (it's the delimiter, not content)
+	-- and enter front-matter mode.
+	local start_i = in_frontmatter and 2 or 1
 
-	for i = start, #lines do
+	for i = start_i, #lines do
 		local line = lines[i]
-		if inside_metadata and line == "---" then
-			inside_metadata = false
-		elseif inside_metadata then
-			parse_metadata(line, data)
-		else
-			parse_task(i - 1, line, data)
+		local linenr = i - 1 -- 0-indexed
 
-			local masked = parse_links(i - 1, line, data)
-			parse_anchors(bufnr, i - 1, masked, active_anchors, data)
+		if in_frontmatter then
+			if line == "---" then
+				in_frontmatter = false
+			else
+				parse_frontmatter_line(line, result)
+			end
+		else
+			-- Inline alias:: field (Obsidian-style dataview syntax)
+			local inline_alias = line:match("^alias::%s*(.+)$")
+			if inline_alias then
+				table.insert(result.aliases, { alias = trim(inline_alias) })
+			end
+
+			-- Tasks must be parsed before masking so patterns stay intact
+			parse_task(linenr, line, result)
+
+			-- Mask links, then parse anchors against the masked line
+			local masked = parse_links(linenr, line, result)
+			masked = parse_anchors(linenr, lines, masked, active_starts, result)
+
+			-- Inline tags from the remaining (masked) content
+			for _, tag in ipairs(extract_inline_tags(masked)) do
+				table.insert(result.tags, { tag = tag })
+			end
 		end
 	end
 
-	deduplicate_metadata(data)
-
-	return data
-end
-
---- Parses the file to produce a BookwyrmNote artifact.
----
---- @param path string # The path to the file to parse.
---- @return BookwyrmNote
-function M.parse_file(path)
-	local bufnr = vim.api.nvim_create_buf(false, true)
-
-	local lines = vim.fn.readfile(path)
-	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-
-	local data
-	vim.api.nvim_buf_call(bufnr, function()
-		vim.noautocmd(function()
-			vim.api.nvim_set_option_value("filetype", "markdown", { buf = bufnr })
-		end)
-
-		data = M.parse_buffer(bufnr)
-	end)
-
-	vim.api.nvim_buf_delete(bufnr, { force = true })
-	return data
+	deduplicate(result)
+	return result
 end
 
 return M
