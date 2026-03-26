@@ -151,6 +151,12 @@ do
 end
 
 do
+	local result = parse({ "---", 'alias: ["quoted"]', "---" })
+	t.eq(1, #result.aliases, "YAML alias singular quoted count")
+	t.eq("quoted", result.aliases[1].alias, "YAML alias singular quoted value")
+end
+
+do
 	local result = parse({ "alias:: My Alias" })
 	t.eq(1, #result.aliases, "inline alias count")
 	t.eq("My Alias", result.aliases[1].alias, "inline alias value")

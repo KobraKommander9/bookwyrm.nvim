@@ -1,5 +1,12 @@
 local M = {}
 
+--- @class ParseResult
+--- @field aliases BookwyrmAlias[]
+--- @field anchors BookwyrmAnchor[]
+--- @field links BookwyrmLink[]
+--- @field tags BookwyrmTag[]
+--- @field tasks BookwyrmTask[]
+
 --- Trims leading and trailing whitespace from a string.
 --- @param s string
 --- @return string
@@ -23,7 +30,7 @@ end
 --- @param result ParseResult
 local function parse_frontmatter_line(line, result)
 	-- aliases: [a, b, c] or alias: [a, b, c]
-	local aliases = line:match("^aliases?:%s*%[?(.+)%]?$")
+	local aliases = line:match("^aliases:%s*%[?(.-)%]?$") or line:match("^alias:%s*%[?(.-)%]?$")
 	if aliases then
 		for a in aliases:gmatch("([^,]+)") do
 			local alias = trim(a):gsub("^([\"'])(.*)%1$", "%2")
@@ -35,7 +42,7 @@ local function parse_frontmatter_line(line, result)
 	end
 
 	-- tags: [t1, t2]
-	local tags = line:match("^tags:%s*%[?(.+)%]?$")
+	local tags = line:match("^tags:%s*%[?(.-)%]?$")
 	if tags then
 		for t in tags:gmatch("([^,]+)") do
 			local tag = trim(t):gsub("^#", "")
@@ -142,11 +149,11 @@ local function parse_anchors(linenr, lines, line, active_starts, result)
 			for row = s.row, linenr do
 				local l = lines[row + 1] or ""
 				if row == s.row and row == linenr then
-					table.insert(parts, l:sub(s.end_col + 1, start_col - 2))
+					table.insert(parts, l:sub(s.end_col + 1, start_col - 1))
 				elseif row == s.row then
 					table.insert(parts, l:sub(s.end_col + 1))
 				elseif row == linenr then
-					table.insert(parts, l:sub(1, start_col - 2))
+					table.insert(parts, l:sub(1, start_col - 1))
 				else
 					table.insert(parts, l)
 				end
@@ -251,9 +258,6 @@ end
 
 --- Parses a list of buffer lines and returns structured data.
 ---
---- This function is stateless and pure: it makes no vim.* calls and performs
---- no I/O. It can be tested with plain Lua.
----
 --- @param lines string[] # Buffer lines, 1-indexed (as returned by nvim_buf_get_lines)
 --- @return ParseResult
 function M.parse(lines)
@@ -277,12 +281,10 @@ function M.parse(lines)
 		local line = lines[i]
 		local linenr = i - 1 -- 0-indexed
 
-		if in_frontmatter then
-			if line == "---" then
-				in_frontmatter = false
-			else
-				parse_frontmatter_line(line, result)
-			end
+		if in_frontmatter and line == "---" then
+			in_frontmatter = false
+		elseif in_frontmatter then
+			parse_frontmatter_line(line, result)
 		else
 			-- Inline alias:: field (Obsidian-style dataview syntax)
 			local inline_alias = line:match("^alias::%s*(.+)$")
