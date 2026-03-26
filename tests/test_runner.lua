@@ -8,6 +8,10 @@
 
 local runner = {}
 
+if not package.path:find("./lua/?.lua") then
+	package.path = "./?.lua;./lua/?.lua;./lua/?/init.lua;" .. package.path
+end
+
 runner.passed = 0
 runner.failed = 0
 runner.errors = {}
@@ -56,12 +60,8 @@ function runner.eq(expected, actual, label)
 		runner.passed = runner.passed + 1
 	else
 		runner.failed = runner.failed + 1
-		local msg = string.format(
-			"FAIL [%s]\n  expected: %s\n  actual:   %s",
-			label or "?",
-			repr(expected),
-			repr(actual)
-		)
+		local msg =
+			string.format("FAIL [%s]\n  expected: %s\n  actual:   %s", label or "?", repr(expected), repr(actual))
 		table.insert(runner.errors, msg)
 		print(msg)
 	end
@@ -82,7 +82,7 @@ end
 --- Print final summary.
 function runner.summary()
 	print(string.format("\n%d passed, %d failed", runner.passed, runner.failed))
-	if runner.failed > 0 then
+	if runner.failed > 0 and not vim then
 		os.exit(1)
 	end
 end

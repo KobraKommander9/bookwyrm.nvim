@@ -6,9 +6,6 @@
 --- Or from Neovim (with the plugin directory on runtimepath):
 ---   :luafile tests/parser_spec.lua
 
--- Allow running from the repo root without installing the plugin
-package.path = "./lua/?.lua;./lua/?/init.lua;" .. package.path
-
 local t = require("tests.test_runner")
 local parser = require("bookwyrm.parser")
 
@@ -363,4 +360,6 @@ end
 -- Summary
 -- ---------------------------------------------------------------------------
 
-t.summary()
+if arg and arg[0]:find(debug.getinfo(1).source:sub(2)) then
+	t.summary()
+end
