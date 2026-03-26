@@ -139,11 +139,11 @@ function Notebook:get_by_id(id)
 	return self:get(id)
 end
 
---- Registers a new notebook.
+--- Inserts a new notebook record.
 ---
---- @param nb BookwyrmBook # The notebook to register
+--- @param nb BookwyrmBook # The notebook to insert
 --- @return integer? # The id of the created notebook, if successful
-function Notebook:register(nb)
+function Notebook:insert(nb)
 	local success, id = self.conn:insert("notebooks", {
 		priority = nb.priority,
 		root_path = nb.root_path,
@@ -154,16 +154,6 @@ function Notebook:register(nb)
 	end
 
 	return id
-end
-
---- Inserts a new notebook record.
----
---- Alias for `register` to match the standard CRUD naming convention.
----
---- @param nb BookwyrmBook # The notebook to insert
---- @return integer? # The id of the created notebook, if successful
-function Notebook:insert(nb)
-	return self:register(nb)
 end
 
 --- Renames the notebook.

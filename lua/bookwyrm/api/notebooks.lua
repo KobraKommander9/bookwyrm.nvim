@@ -74,7 +74,7 @@ function M.register_notebook(opts)
 		title = opts.title or vim.fn.fnamemodify(path, ":t:r"),
 	}
 
-	local id = state.get_conn().notebooks:register(nb)
+	local id = state.get_conn().notebooks:insert(nb)
 	if not id then
 		notify.error("failed to register notebook", state.cfg.silent)
 		return nil
