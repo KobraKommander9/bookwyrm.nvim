@@ -51,7 +51,7 @@ end
 ---
 --- @param id integer # The notebook id
 --- @return BookwyrmBook?
-function Notebook:get(id)
+function Notebook:get_by_id(id)
 	local status, result = pcall(function()
 		local rows = self.conn:select("notebooks", { where = { id = id } })
 		assert(rows and #rows == 1)
@@ -80,7 +80,7 @@ function Notebook:get_by_path(path)
     ]],
 			{ path = path }
 		)
-		assert(rows and #rows > 1)
+		assert(rows and #rows > 0)
 
 		return rows[1]
 	end)
@@ -129,11 +129,11 @@ function Notebook:list()
 	return result
 end
 
---- Registers a new notebook.
+--- Inserts a new notebook record.
 ---
---- @param nb BookwyrmBook # The notebook to register
+--- @param nb BookwyrmBook # The notebook to insert
 --- @return integer? # The id of the created notebook, if successful
-function Notebook:register(nb)
+function Notebook:insert(nb)
 	local success, id = self.conn:insert("notebooks", {
 		priority = nb.priority,
 		root_path = nb.root_path,

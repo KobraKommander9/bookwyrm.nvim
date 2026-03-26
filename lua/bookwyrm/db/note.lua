@@ -25,23 +25,52 @@ function Note.new(conn, silent)
 	}, Note)
 end
 
---- --- Gets the note for the provided path, if any.
---- ---
---- --- @param path string # The full path to the note.
---- --- @return BookwyrmNote?
---- function Note:get_for_path(path)
---- 	local status, result = pcall(function()
---- 		local rows = self.conn:select("notes", { where = { path = path } })
---- 		assert(rows and #rows > 0)
---- 		return rows[1]
---- 	end)
+--- Gets the note by its relative path within a notebook.
 ---
---- 	if not status then
---- 		return nil
---- 	end
+--- @param nb_id integer # The notebook id
+--- @param relative_path string # The relative path within the notebook
+--- @return BookwyrmNote?
+function Note:get_by_path(nb_id, relative_path)
+	local status, result = pcall(function()
+		local rows = self.conn:select("notes", {
+			where = { notebook_id = nb_id, relative_path = relative_path },
+		})
+		assert(rows and #rows > 0, "note not found")
+		return rows[1]
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
+--- Deletes a note and all its associated data (via CASCADE).
 ---
---- 	return result
---- end
+--- @param id integer # The note id to delete
+--- @return boolean # If the operation was successful
+function Note:delete(id)
+	local status, err = pcall(function()
+		--- @diagnostic disable-next-line assign-type-mismatch
+		assert(self.conn:delete("notes", { id = id }), "note delete failed")
+	end)
+
+	if not status then
+		notify.error("failed to delete note: " .. tostring(err), self.silent)
+		return false
+	end
+
+	return true
+end
+
+--- Lists all notes in a notebook.
+---
+--- @param nb_id integer # The notebook id
+--- @return BookwyrmNote[]
+function Note:list_by_notebook(nb_id)
+	return self:list(nb_id)
+end
 
 --- Lists all notes.
 ---
@@ -66,22 +95,33 @@ function Note:list(nb_id)
 	return result
 end
 
---- Saves a note.
+--- Upserts a note (insert or update) along with all its associated data in a
+--- single transaction.
 ---
 --- @param nb_id integer # The id of the notebook to save the note to.
---- @param nb BookwyrmNote # The note to save
+--- @param note BookwyrmNote # The note to save
 --- @return BookwyrmNote?
-function Note:save(nb_id, nb)
+function Note:upsert_note(nb_id, note)
 	local status, result = pcall(function()
 		assert(self.conn:eval("BEGIN TRANSACTION;"), "failed to begin transaction")
 
 		local rows = self.conn:eval(
 			[[
-       INSERT INTO notes (notebook_id, relative_path, title) VALUES (:nb_id, :relative_path, :title)
-       ON CONFLICT(notebook_id, relative_path) DO UPDATE SET title = excluded.title
-       RETURNING id
-     ]],
-			{ nb_id = nb_id, relative_path = nb.relative_path, title = nb.title }
+      INSERT INTO notes (notebook_id, relative_path, title, fsize, mtime)
+      VALUES (:nb_id, :relative_path, :title, :fsize, :mtime)
+      ON CONFLICT(notebook_id, relative_path) DO UPDATE SET
+        title  = excluded.title,
+        fsize  = excluded.fsize,
+        mtime  = excluded.mtime
+      RETURNING id
+    ]],
+			{
+				nb_id = nb_id,
+				relative_path = note.relative_path,
+				title = note.title,
+				fsize = note.fsize,
+				mtime = note.mtime,
+			}
 		)
 
 		if not rows or #rows < 1 then
@@ -96,15 +136,16 @@ function Note:save(nb_id, nb)
 		assert(self.conn:delete("tags", { note_id = note_id }), "failed to delete tags")
 		assert(self.conn:delete("tasks", { note_id = note_id }), "failed to delete tasks")
 
-		Q.batch_insert(self.conn, "aliases", nb.aliases, function(a)
+		Q.batch_insert(self.conn, "aliases", note.aliases, function(a)
 			return { note_id = note_id, alias = a.alias }
 		end)
 
-		Q.batch_insert(self.conn, "anchors", nb.anchors, function(a)
+		Q.batch_insert(self.conn, "anchors", note.anchors, function(a)
 			return {
 				note_id = note_id,
 				anchor_id = a.anchor_id,
 				content = a.content,
+				type = a.type,
 				start_line = a.loc.start.line,
 				start_char = a.loc.start.character,
 				end_line = a.loc.finish.line,
@@ -112,7 +153,7 @@ function Note:save(nb_id, nb)
 			}
 		end)
 
-		Q.batch_insert(self.conn, "links", nb.links, function(l)
+		Q.batch_insert(self.conn, "links", note.links, function(l)
 			return {
 				note_id = note_id,
 				target_note = l.target_note,
@@ -125,11 +166,11 @@ function Note:save(nb_id, nb)
 			}
 		end)
 
-		Q.batch_insert(self.conn, "tags", nb.tags, function(t)
+		Q.batch_insert(self.conn, "tags", note.tags, function(t)
 			return { note_id = note_id, tag = t.tag }
 		end)
 
-		Q.batch_insert(self.conn, "tasks", nb.tasks, function(t)
+		Q.batch_insert(self.conn, "tasks", note.tasks, function(t)
 			return {
 				note_id = note_id,
 				line = t.line,
@@ -144,13 +185,14 @@ function Note:save(nb_id, nb)
 	end)
 
 	if not status then
+		self.conn:eval("ROLLBACK;")
 		notify.error("failed to save note: " .. tostring(result), self.silent)
 		return nil
 	end
 
-	nb.id = result
+	note.id = result
 
-	return nb
+	return note
 end
 
 return Note
