@@ -6,6 +6,7 @@
 local Note = {}
 
 local notify = require("bookwyrm.util.notify")
+local Q = require("bookwyrm.db.queries")
 
 Note.__index = Note
 Note.__tostring = function()
@@ -94,27 +95,6 @@ function Note:list(nb_id)
 	return result
 end
 
---- Batch-inserts a list of items into a table.
----
---- @param table_name string
---- @param items table[]
---- @param mapper function
-local function batch_insert(db, table_name, items, mapper)
-	items = items or {}
-	if #items == 0 then
-		return
-	end
-
-	local data = {}
-	for _, item in ipairs(items) do
-		table.insert(data, mapper(item))
-	end
-
-	if not db:insert(table_name, data) then
-		error("batch insert failed for " .. table_name)
-	end
-end
-
 --- Upserts a note (insert or update) along with all its associated data in a
 --- single transaction.
 ---
@@ -156,11 +136,11 @@ function Note:upsert_note(nb_id, note)
 		assert(self.conn:delete("tags", { note_id = note_id }), "failed to delete tags")
 		assert(self.conn:delete("tasks", { note_id = note_id }), "failed to delete tasks")
 
-		batch_insert(self.conn, "aliases", note.aliases, function(a)
+		Q.batch_insert(self.conn, "aliases", note.aliases, function(a)
 			return { note_id = note_id, alias = a.alias }
 		end)
 
-		batch_insert(self.conn, "anchors", note.anchors, function(a)
+		Q.batch_insert(self.conn, "anchors", note.anchors, function(a)
 			return {
 				note_id = note_id,
 				anchor_id = a.anchor_id,
@@ -173,7 +153,7 @@ function Note:upsert_note(nb_id, note)
 			}
 		end)
 
-		batch_insert(self.conn, "links", note.links, function(l)
+		Q.batch_insert(self.conn, "links", note.links, function(l)
 			return {
 				note_id = note_id,
 				target_note = l.target_note,
@@ -186,11 +166,11 @@ function Note:upsert_note(nb_id, note)
 			}
 		end)
 
-		batch_insert(self.conn, "tags", note.tags, function(t)
+		Q.batch_insert(self.conn, "tags", note.tags, function(t)
 			return { note_id = note_id, tag = t.tag }
 		end)
 
-		batch_insert(self.conn, "tasks", note.tasks, function(t)
+		Q.batch_insert(self.conn, "tasks", note.tasks, function(t)
 			return {
 				note_id = note_id,
 				line = t.line,

@@ -51,7 +51,7 @@ end
 ---
 --- @param id integer # The notebook id
 --- @return BookwyrmBook?
-function Notebook:get(id)
+function Notebook:get_by_id(id)
 	local status, result = pcall(function()
 		local rows = self.conn:select("notebooks", { where = { id = id } })
 		assert(rows and #rows == 1)
@@ -127,16 +127,6 @@ function Notebook:list()
 	end
 
 	return result
-end
-
---- Gets the specified notebook by id.
----
---- Alias for `get` to match the standard CRUD naming convention.
----
---- @param id integer # The notebook id
---- @return BookwyrmBook?
-function Notebook:get_by_id(id)
-	return self:get(id)
 end
 
 --- Inserts a new notebook record.
