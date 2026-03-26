@@ -40,7 +40,7 @@ local defaults = {
 		},
 		todo = {
 			header = false,
-			path = "tasks.md",
+			path = "tasks",
 			prefix = "- [ ] TODO ",
 		},
 	},
