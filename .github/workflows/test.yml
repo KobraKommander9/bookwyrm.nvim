@@ -1,0 +1,21 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Run Tests
+        run: lua5.4 tests/run_all.lua
