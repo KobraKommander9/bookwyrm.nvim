@@ -120,8 +120,12 @@ function M.sync_buffer(bufnr)
 	local root = nb.root_path .. "/"
 	local rel_path = path:sub(#root + 1)
 
-	local note = parser.parse_buffer(bufnr)
+	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+	local note = parser.parse(lines)
 	note.relative_path = rel_path
+	note.title = vim.fn.fnamemodify(path, ":t:r")
+	note.fsize = vim.fn.getfsize(path)
+	note.mtime = vim.fn.getftime(path)
 
 	state.get_conn().notes:save(nb.id, note)
 end
@@ -149,8 +153,12 @@ function M.sync_file(path)
 	local root = nb.root_path .. "/"
 	local rel_path = path:sub(#root + 1)
 
-	local note = parser.parse_file(path)
+	local lines = vim.fn.readfile(path)
+	local note = parser.parse(lines)
 	note.relative_path = rel_path
+	note.title = vim.fn.fnamemodify(path, ":t:r")
+	note.fsize = vim.fn.getfsize(path)
+	note.mtime = vim.fn.getftime(path)
 
 	state.get_conn().notes:save(nb.id, note)
 end
