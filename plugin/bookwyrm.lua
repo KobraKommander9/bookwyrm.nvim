@@ -55,7 +55,7 @@ vim.api.nvim_create_user_command("BookwyrmNoteCreate", function()
 	}, function(title)
 		if title and title ~= "" then
 			local api = require("bookwyrm").api
-			local path = api.capture_note({}, { path = title })
+			local path = api.capture_note({}, { path = title:gsub("%.md$", "") })
 			if path then
 				api.open(path)
 			end

@@ -48,7 +48,7 @@ local function parse_template(str, vars)
 end
 
 --- @class BookwyrmNoteAPI.CaptureNoteOpts
---- @field path string? # The path to the new note. Defaults to (template or %Y-%m-%d_%H-%M-%S)
+--- @field path string? # Relative path within the notebook root (without .md). Defaults to template path or "{{datetime}}"
 --- @field tname string? # The note template name
 
 --- Captures the provided lines into a new note using the specified template.
