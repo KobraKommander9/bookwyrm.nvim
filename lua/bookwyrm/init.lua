@@ -60,6 +60,7 @@ function M.setup(opts)
 
 	if not opts.disable_hooks then
 		hooks.setup_context_switcher()
+		hooks.setup_watchdog()
 	end
 end
 
