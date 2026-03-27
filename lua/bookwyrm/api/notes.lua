@@ -193,7 +193,7 @@ function M.sync()
 	local uv = vim.uv or vim.loop
 	local nb = state.nb
 
-	hooks.fire("pre_sync")
+	hooks.fire("pre_sync", { notebook = { id = nb.id, title = nb.title, root_path = nb.root_path } })
 	notify.info("Syncing notebook: " .. nb.title, state.cfg.silent)
 	local start_time = uv.hrtime()
 	local count = 0
@@ -215,7 +215,7 @@ function M.sync()
 
 	local duration = (uv.hrtime() - start_time) / 1e6
 	notify.info(string.format("Sync complete! Indexed %d files in %.2fms", count, duration))
-	hooks.fire("post_sync", { count = count, duration = duration })
+	hooks.fire("post_sync", { notebook = { id = nb.id, title = nb.title, root_path = nb.root_path }, count = count, duration = duration })
 end
 
 --- Syncs a single file on disk with the database.
