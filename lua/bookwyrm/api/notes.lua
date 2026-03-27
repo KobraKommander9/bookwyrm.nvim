@@ -69,6 +69,7 @@ function M.capture_note(lines, opts)
 	local vars = get_template_variables(template.variables)
 
 	local path = template.path or opts.path or "{{datetime}}"
+	path = path:gsub("%.md$", "")
 	path = paths.normalize_fname(path)
 
 	local rel_path = paths.normalize_fname(parse_template(path, vars)) .. ".md"
