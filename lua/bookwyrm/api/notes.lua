@@ -55,7 +55,7 @@ end
 ---
 --- @param lines string[] # The lines to capture
 --- @param opts BookwyrmNoteAPI.CaptureNoteOpts? # Capture options
---- @return BookwyrmNote?
+--- @return string? # The absolute path of the created note, or nil on failure
 function M.capture_note(lines, opts)
 	opts = opts or {}
 
@@ -90,6 +90,8 @@ function M.capture_note(lines, opts)
 	if f then
 		f:write(table.concat(content, "\n") .. "\n")
 		f:close()
+		M.sync_file(full_path)
+		return full_path
 	else
 		notify.error("Failed to open new note: " .. full_path, state.cfg.silent)
 	end
