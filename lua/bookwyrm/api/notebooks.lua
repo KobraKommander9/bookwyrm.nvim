@@ -9,7 +9,7 @@ local state = require("bookwyrm.state")
 ---
 --- @param skip_db boolean? # If true, won't check for default notebook in db if no active is set
 --- @return BookwyrmBook?
-function M.get_active(skip_db)
+function M.get_active_notebook(skip_db)
 	if skip_db or state.nb then
 		return state.nb
 	end
@@ -36,7 +36,7 @@ end
 ---
 --- @param opts BookwyrmNotebookAPI.RegisterOpts?
 --- @return BookwyrmBook? # The registered notebook, if successful
-function M.register(opts)
+function M.register_notebook(opts)
 	opts = opts or {}
 
 	local path = paths.normalize(opts.path or vim.fn.getcwd())
@@ -69,7 +69,7 @@ end
 ---
 --- @param title string # The new title
 --- @param id integer? # The id of the notebook to rename (defaults to active)
-function M.rename(title, id)
+function M.rename_notebook(title, id)
 	id = id or state.get_active_id()
 	if not id then
 		notify.warn("no notebook to rename", state.cfg.silent)
@@ -86,7 +86,7 @@ end
 --- Removes the active notebook record from the DB.
 ---
 --- @param id integer? # The id of the notebook to delete (defaults to active)
-function M.delete(id)
+function M.delete_notebook(id)
 	local target_id = id or state.get_active_id()
 	if not target_id then
 		notify.warn("no active notebook to delete", state.cfg.silent)
@@ -103,7 +103,7 @@ end
 --- Returns all registered notebooks.
 ---
 --- @return BookwyrmBook[]
-function M.list()
+function M.list_notebooks()
 	return state.get_conn().notebooks:list()
 end
 
@@ -111,7 +111,7 @@ end
 ---
 --- @param id integer # The id of the notebook to set as active
 --- @return BookwyrmBook? # The newly active notebook
-function M.set_active(id)
+function M.set_active_notebook(id)
 	if state.nb and state.nb.id == id then
 		return state.nb
 	end
