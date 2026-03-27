@@ -5,13 +5,41 @@ local notify = require("bookwyrm.util.notify")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
 
+--- Returns the active notebook, if any.
+---
+--- @param skip_db boolean? # If true, won't check for default notebook in db if no active is set
+--- @return BookwyrmBook?
+function M.get_active(skip_db)
+	if skip_db or state.nb then
+		return state.nb
+	end
+
+	local status, result = pcall(function()
+		return state.get_conn().notebooks:get_default()
+	end)
+
+	if not status then
+		return nil
+	end
+
+	state.set_active(result)
+
+	return state.nb
+end
+
+--- @class BookwyrmNotebookAPI.RegisterOpts
+--- @field path string? # The path to the notebook directory (defaults to CWD)
+--- @field priority integer? # The notebook priority (defaults to 0 -- highest)
+--- @field title string? # The title of the notebook (defaults to folder name)
+
 --- Registers a new notebook and sets it as active.
 ---
---- @param name string # The display name for the notebook
---- @param path string # The path to the notebook directory
+--- @param opts BookwyrmNotebookAPI.RegisterOpts?
 --- @return BookwyrmBook? # The registered notebook, if successful
-function M.register(name, path)
-	path = paths.normalize(path)
+function M.register(opts)
+	opts = opts or {}
+
+	local path = paths.normalize(opts.path or vim.fn.getcwd())
 	paths.ensure_dir(path)
 
 	if vim.fn.isdirectory(path) == 0 then
@@ -20,9 +48,9 @@ function M.register(name, path)
 	end
 
 	local nb = {
-		priority = 0,
+		priority = opts.priority or 0,
 		root_path = path,
-		title = name,
+		title = opts.title or vim.fn.fnamemodify(path, ":t:r"),
 	}
 
 	local id = state.get_conn().notebooks:insert(nb)
@@ -37,16 +65,39 @@ function M.register(name, path)
 	return nb
 end
 
---- Removes the active notebook record from the DB.
-function M.delete()
-	local id = state.get_active_id()
+--- Renames a notebook.
+---
+--- @param title string # The new title
+--- @param id integer? # The id of the notebook to rename (defaults to active)
+function M.rename(title, id)
+	id = id or state.get_active_id()
 	if not id then
+		notify.warn("no notebook to rename", state.cfg.silent)
+		return nil
+	end
+
+	if not state.get_conn().notebooks:rename(title, id) then
+		notify.error("failed to rename notebook", state.cfg.silent)
+	else
+		notify.info("successfully renamed notebook", state.cfg.silent)
+	end
+end
+
+--- Removes the active notebook record from the DB.
+---
+--- @param id integer? # The id of the notebook to delete (defaults to active)
+function M.delete(id)
+	local target_id = id or state.get_active_id()
+	if not target_id then
 		notify.warn("no active notebook to delete", state.cfg.silent)
 		return
 	end
 
-	state.nb = nil
-	state.get_conn().notebooks:delete(id)
+	if state.get_active_id() == target_id then
+		state.nb = nil
+	end
+
+	state.get_conn().notebooks:delete(target_id)
 end
 
 --- Returns all registered notebooks.
