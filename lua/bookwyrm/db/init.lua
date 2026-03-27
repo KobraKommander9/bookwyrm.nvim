@@ -31,7 +31,7 @@ local MIGRATIONS = {
         fsize INTEGER,
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         mtime INTEGER,
-        notebook_id INTEGER NOT NULL, 
+        notebook_id INTEGER NOT NULL,
         relative_path TEXT NOT NULL,
         title TEXT,
         UNIQUE(notebook_id, relative_path),
@@ -41,9 +41,9 @@ local MIGRATIONS = {
       CREATE TABLE anchors (
         anchor_id TEXT NOT NULL,
         content TEXT NOT NULL,
-        note_id INTEGER NOT NULL, 
+        note_id INTEGER NOT NULL,
         type TEXT NOT NULL,
-        
+
         start_line INTEGER NOT NULL,
         start_char INTEGER NOT NULL,
         end_line INTEGER NOT NULL,
@@ -60,7 +60,7 @@ local MIGRATIONS = {
         target_note TEXT,
         target_note_id INTEGER,
         target_anchor TEXT,
-        
+
         start_line INTEGER NOT NULL,
         start_char INTEGER NOT NULL,
         end_line INTEGER NOT NULL,
