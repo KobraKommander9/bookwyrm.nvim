@@ -303,6 +303,43 @@ function M.list_notes(opts)
 	return state.get_conn().notes:list(nb_id)
 end
 
+--- @class BookwyrmSearchNotesQuery
+--- @field text string # The search text to match against title, aliases, and tags
+
+--- @class BookwyrmSearchNotesOpts
+--- @field nb_id integer? # The id of the notebook to search in, defaults to the active notebook.
+
+--- Searches notes in the active (or specified) notebook.
+---
+--- Matches `query.text` against note titles, aliases, and tags using
+--- case-insensitive substring matching.  Fuzzy refinement is left to the
+--- caller (e.g. a picker).
+---
+--- Each entry has the same shape as `list_notes()` plus a `display` field
+--- that concatenates title, tags (prefixed with `#`), and aliases for picker
+--- fuzzy matching.
+---
+--- Returns an empty list when no active notebook is set.  Returns all notes
+--- when `query.text` is nil or empty (equivalent to `list_notes()`).
+---
+--- @param query BookwyrmSearchNotesQuery # The search query
+--- @param opts BookwyrmSearchNotesOpts? # Search options
+--- @return BookwyrmNote[]
+function M.search_notes(query, opts)
+	state.ensure_active()
+	if not state.nb then
+		return {}
+	end
+
+	local nb_id = (opts and opts.nb_id) or state.get_active_id()
+
+	if not query or not query.text or query.text == "" then
+		return state.get_conn().notes:list(nb_id)
+	end
+
+	return state.get_conn().notes:search(nb_id, query.text)
+end
+
 --- Returns all notes that contain a link pointing to the given file.
 ---
 --- Each entry contains:

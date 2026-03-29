@@ -256,6 +256,64 @@ function Note:get_backlinks(nb_id, relative_path)
 	return result
 end
 
+--- Searches notes in a notebook by matching text against titles, aliases, and tags.
+---
+--- Returns matching notes with a `display` field containing title, tags, and
+--- aliases concatenated for picker fuzzy matching.
+---
+--- @param nb_id integer # The notebook id to search within
+--- @param text  string  # Case-insensitive substring to match
+--- @return BookwyrmNote[]
+function Note:search(nb_id, text)
+	local status, result = pcall(function()
+		local pattern = "%" .. text:lower() .. "%"
+		local rows = self.conn:eval(
+			[[
+      SELECT DISTINCT
+        n.id, n.notebook_id, n.relative_path, n.title, n.fsize, n.mtime,
+        GROUP_CONCAT(DISTINCT t.tag)   AS _tags,
+        GROUP_CONCAT(DISTINCT a.alias) AS _aliases
+      FROM notes n
+      LEFT JOIN tags    t ON t.note_id = n.id
+      LEFT JOIN aliases a ON a.note_id = n.id
+      WHERE n.notebook_id = :nb_id
+        AND (
+          lower(n.title)    LIKE :pattern
+          OR lower(t.tag)   LIKE :pattern
+          OR lower(a.alias) LIKE :pattern
+        )
+      GROUP BY n.id
+    ]],
+			{ nb_id = nb_id, pattern = pattern }
+		)
+		return rows or {}
+	end)
+
+	if not status then
+		notify.error("failed to search notes: " .. tostring(result), self.silent)
+		return {}
+	end
+
+	for _, row in ipairs(result) do
+		local parts = { row.title }
+		if row._tags and row._tags ~= "" then
+			for tag in row._tags:gmatch("[^,]+") do
+				table.insert(parts, "#" .. tag)
+			end
+		end
+		if row._aliases and row._aliases ~= "" then
+			for alias in row._aliases:gmatch("[^,]+") do
+				table.insert(parts, alias)
+			end
+		end
+		row.display = table.concat(parts, " ")
+		row._tags = nil
+		row._aliases = nil
+	end
+
+	return result
+end
+
 --- Resolves a note title to the matching note within a notebook.
 ---
 --- @param nb_id integer # The notebook id to search within
