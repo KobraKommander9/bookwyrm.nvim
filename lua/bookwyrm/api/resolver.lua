@@ -29,15 +29,15 @@ function M.resolve_with_conn(link_text, db, nb_id, root_path)
 	local lower = title:lower()
 
 	-- 1. Check aliases table first (case-insensitive)
-	local alias_path = db.notes:resolve_by_alias(nb_id, lower)
-	if alias_path then
-		return root_path .. "/" .. alias_path
+	local alias_note = db.notes:resolve_by_alias(nb_id, lower)
+	if alias_note then
+		return root_path .. "/" .. alias_note.relative_path
 	end
 
 	-- 2. Fall back to notes table by title (case-insensitive)
-	local note_path = db.notes:resolve_by_title(nb_id, lower)
-	if note_path then
-		return root_path .. "/" .. note_path
+	local title_note = db.notes:resolve_by_title(nb_id, lower)
+	if title_note then
+		return root_path .. "/" .. title_note.relative_path
 	end
 
 	return nil
@@ -102,10 +102,7 @@ function M.goto_definition()
 		return
 	end
 
-	-- Strip display alias (e.g. "Note|Display" → "Note")
-	local target = link_text:match("^([^|]+)") or link_text
-
-	local path = M.resolve(target)
+	local path = M.resolve(link_text)
 	if path then
 		vim.cmd.edit(vim.fn.fnameescape(path))
 	else

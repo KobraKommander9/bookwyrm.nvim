@@ -13,26 +13,35 @@ local resolver = require("bookwyrm.api.resolver")
 -- Helpers: mock BookwyrmDB
 -- ---------------------------------------------------------------------------
 
---- Build a mock BookwyrmDB whose notes sub-object returns predetermined
---- values from resolve_by_alias and resolve_by_title.
+--- Build a mock BookwyrmDB that records the arguments passed to each lookup
+--- and returns the supplied note objects.
 ---
---- `alias_path`  — relative_path returned by resolve_by_alias, or nil for no match
---- `note_path`   — relative_path returned by resolve_by_title, or nil for no match
+--- `alias_note`  — BookwyrmNote-like table returned by resolve_by_alias, or nil
+--- `title_note`  — BookwyrmNote-like table returned by resolve_by_title, or nil
 ---
---- @param alias_path string?
---- @param note_path  string?
+--- The returned `db` table exposes a `.calls` subtable:
+---   db.calls.alias  — { nb_id, alias }  set when resolve_by_alias is called
+---   db.calls.title  — { nb_id, title }  set when resolve_by_title is called
+---
+--- @param alias_note table?
+--- @param title_note  table?
 --- @return table   # a db mock compatible with resolve_with_conn
-local function mock_db(alias_path, note_path)
-	return {
+local function mock_db(alias_note, title_note)
+	local calls = {}
+	local db = {
+		calls = calls,
 		notes = {
-			resolve_by_alias = function(_, _, _)
-				return alias_path
+			resolve_by_alias = function(_, nb_id, alias)
+				calls.alias = { nb_id = nb_id, alias = alias }
+				return alias_note
 			end,
-			resolve_by_title = function(_, _, _)
-				return note_path
+			resolve_by_title = function(_, nb_id, title)
+				calls.title = { nb_id = nb_id, title = title }
+				return title_note
 			end,
 		},
 	}
+	return db
 end
 
 -- ---------------------------------------------------------------------------
@@ -71,21 +80,23 @@ end
 
 do
 	-- Alias match: exact case
-	local db = mock_db("notes/my-note.md", nil)
+	local db = mock_db({ relative_path = "notes/my-note.md" }, nil)
 	local result = resolver.resolve_with_conn("my-note", db, 1, "/nb")
 	t.eq("/nb/notes/my-note.md", result, "resolve: alias exact case")
+	t.eq("my-note", db.calls.alias.alias, "resolve: alias exact case — correct alias passed to lookup")
 end
 
 do
-	-- Alias match: different case in link text
-	local db = mock_db("notes/My Note.md", nil)
+	-- Alias match: different case in link text — resolver must lowercase before lookup
+	local db = mock_db({ relative_path = "notes/My Note.md" }, nil)
 	local result = resolver.resolve_with_conn("MY NOTE", db, 1, "/nb")
 	t.eq("/nb/notes/My Note.md", result, "resolve: alias case-insensitive")
+	t.eq("my note", db.calls.alias.alias, "resolve: alias case-insensitive — lowercased before lookup")
 end
 
 do
 	-- Alias match takes priority over title match
-	local db = mock_db("by-alias.md", "by-title.md")
+	local db = mock_db({ relative_path = "by-alias.md" }, { relative_path = "by-title.md" })
 	local result = resolver.resolve_with_conn("note", db, 1, "/nb")
 	t.eq("/nb/by-alias.md", result, "resolve: alias takes priority over title")
 end
@@ -96,16 +107,18 @@ end
 
 do
 	-- No alias, but note title matches
-	local db = mock_db(nil, "notes/meeting.md")
+	local db = mock_db(nil, { relative_path = "notes/meeting.md" })
 	local result = resolver.resolve_with_conn("Meeting", db, 1, "/nb")
 	t.eq("/nb/notes/meeting.md", result, "resolve: title match")
+	t.eq("meeting", db.calls.title.title, "resolve: title match — lowercased before lookup")
 end
 
 do
-	-- Case-insensitive title match
-	local db = mock_db(nil, "notes/meeting.md")
+	-- Case-insensitive title match — resolver must lowercase before lookup
+	local db = mock_db(nil, { relative_path = "notes/meeting.md" })
 	local result = resolver.resolve_with_conn("MEETING", db, 1, "/nb")
 	t.eq("/nb/notes/meeting.md", result, "resolve: title case-insensitive")
+	t.eq("meeting", db.calls.title.title, "resolve: title case-insensitive — lowercased before lookup")
 end
 
 -- ---------------------------------------------------------------------------
@@ -124,7 +137,7 @@ end
 
 do
 	-- Empty link text
-	local db = mock_db("x.md", nil)
+	local db = mock_db({ relative_path = "x.md" }, nil)
 	t.eq(nil, resolver.resolve_with_conn("", db, 1, "/nb"), "resolve: empty string returns nil")
 	t.eq(nil, resolver.resolve_with_conn(nil, db, 1, "/nb"), "resolve: nil returns nil")
 end
@@ -138,17 +151,19 @@ do
 end
 
 do
-	-- Link text with anchor fragment: only the part before # is matched
-	local db = mock_db(nil, "notes/foo.md")
+	-- Link text with anchor fragment: only the part before # is looked up
+	local db = mock_db(nil, { relative_path = "notes/foo.md" })
 	local result = resolver.resolve_with_conn("Foo#section-1", db, 1, "/nb")
 	t.eq("/nb/notes/foo.md", result, "resolve: strips anchor fragment before lookup")
+	t.eq("foo", db.calls.title.title, "resolve: strips anchor fragment — only title part passed to lookup")
 end
 
 do
-	-- Link text with display alias pipe: only the part before | is matched
-	local db = mock_db(nil, "notes/bar.md")
+	-- Link text with display alias pipe: only the part before | is looked up
+	local db = mock_db(nil, { relative_path = "notes/bar.md" })
 	local result = resolver.resolve_with_conn("Bar|Display Text", db, 1, "/nb")
 	t.eq("/nb/notes/bar.md", result, "resolve: strips display alias before lookup")
+	t.eq("bar", db.calls.title.title, "resolve: strips display alias — only note name passed to lookup")
 end
 
 -- ---------------------------------------------------------------------------
