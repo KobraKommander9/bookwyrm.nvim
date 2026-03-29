@@ -10,26 +10,28 @@ local t = require("tests.test_runner")
 local resolver = require("bookwyrm.api.resolver")
 
 -- ---------------------------------------------------------------------------
--- Helpers: mock sqlite-like connection
+-- Helpers: mock BookwyrmDB
 -- ---------------------------------------------------------------------------
 
---- Build a mock sqlite connection whose `eval` method returns predetermined
---- rows based on the SQL statement that is passed to it.
+--- Build a mock BookwyrmDB whose notes sub-object returns predetermined
+--- values from resolve_by_alias and resolve_by_title.
 ---
---- `alias_rows`  — rows returned when the query mentions the aliases table
---- `note_rows`   — rows returned when the query mentions the notes table
+--- `alias_path`  — relative_path returned by resolve_by_alias, or nil for no match
+--- `note_path`   — relative_path returned by resolve_by_title, or nil for no match
 ---
---- @param alias_rows table[]
---- @param note_rows  table[]
---- @return table   # a conn mock compatible with resolve_with_conn
-local function mock_conn(alias_rows, note_rows)
+--- @param alias_path string?
+--- @param note_path  string?
+--- @return table   # a db mock compatible with resolve_with_conn
+local function mock_db(alias_path, note_path)
 	return {
-		eval = function(_, sql, _)
-			if sql:find("aliases") then
-				return alias_rows
-			end
-			return note_rows
-		end,
+		notes = {
+			resolve_by_alias = function(_, _, _)
+				return alias_path
+			end,
+			resolve_by_title = function(_, _, _)
+				return note_path
+			end,
+		},
 	}
 end
 
@@ -69,25 +71,22 @@ end
 
 do
 	-- Alias match: exact case
-	local conn = mock_conn({ { relative_path = "notes/my-note.md" } }, {})
-	local result = resolver.resolve_with_conn("my-note", conn, 1, "/nb")
+	local db = mock_db("notes/my-note.md", nil)
+	local result = resolver.resolve_with_conn("my-note", db, 1, "/nb")
 	t.eq("/nb/notes/my-note.md", result, "resolve: alias exact case")
 end
 
 do
 	-- Alias match: different case in link text
-	local conn = mock_conn({ { relative_path = "notes/My Note.md" } }, {})
-	local result = resolver.resolve_with_conn("MY NOTE", conn, 1, "/nb")
+	local db = mock_db("notes/My Note.md", nil)
+	local result = resolver.resolve_with_conn("MY NOTE", db, 1, "/nb")
 	t.eq("/nb/notes/My Note.md", result, "resolve: alias case-insensitive")
 end
 
 do
 	-- Alias match takes priority over title match
-	local alias_conn = mock_conn(
-		{ { relative_path = "by-alias.md" } },
-		{ { relative_path = "by-title.md" } }
-	)
-	local result = resolver.resolve_with_conn("note", alias_conn, 1, "/nb")
+	local db = mock_db("by-alias.md", "by-title.md")
+	local result = resolver.resolve_with_conn("note", db, 1, "/nb")
 	t.eq("/nb/by-alias.md", result, "resolve: alias takes priority over title")
 end
 
@@ -97,15 +96,15 @@ end
 
 do
 	-- No alias, but note title matches
-	local conn = mock_conn({}, { { relative_path = "notes/meeting.md" } })
-	local result = resolver.resolve_with_conn("Meeting", conn, 1, "/nb")
+	local db = mock_db(nil, "notes/meeting.md")
+	local result = resolver.resolve_with_conn("Meeting", db, 1, "/nb")
 	t.eq("/nb/notes/meeting.md", result, "resolve: title match")
 end
 
 do
 	-- Case-insensitive title match
-	local conn = mock_conn({}, { { relative_path = "notes/meeting.md" } })
-	local result = resolver.resolve_with_conn("MEETING", conn, 1, "/nb")
+	local db = mock_db(nil, "notes/meeting.md")
+	local result = resolver.resolve_with_conn("MEETING", db, 1, "/nb")
 	t.eq("/nb/notes/meeting.md", result, "resolve: title case-insensitive")
 end
 
@@ -114,8 +113,8 @@ end
 -- ---------------------------------------------------------------------------
 
 do
-	local conn = mock_conn({}, {})
-	local result = resolver.resolve_with_conn("nonexistent", conn, 1, "/nb")
+	local db = mock_db(nil, nil)
+	local result = resolver.resolve_with_conn("nonexistent", db, 1, "/nb")
 	t.eq(nil, result, "resolve: no match returns nil")
 end
 
@@ -125,30 +124,30 @@ end
 
 do
 	-- Empty link text
-	local conn = mock_conn({ { relative_path = "x.md" } }, {})
-	t.eq(nil, resolver.resolve_with_conn("", conn, 1, "/nb"), "resolve: empty string returns nil")
-	t.eq(nil, resolver.resolve_with_conn(nil, conn, 1, "/nb"), "resolve: nil returns nil")
+	local db = mock_db("x.md", nil)
+	t.eq(nil, resolver.resolve_with_conn("", db, 1, "/nb"), "resolve: empty string returns nil")
+	t.eq(nil, resolver.resolve_with_conn(nil, db, 1, "/nb"), "resolve: nil returns nil")
 end
 
 do
-	-- Missing conn/nb_id/root_path
-	local conn = mock_conn({}, {})
-	t.eq(nil, resolver.resolve_with_conn("note", nil, 1, "/nb"), "resolve: nil conn returns nil")
-	t.eq(nil, resolver.resolve_with_conn("note", conn, nil, "/nb"), "resolve: nil nb_id returns nil")
-	t.eq(nil, resolver.resolve_with_conn("note", conn, 1, nil), "resolve: nil root_path returns nil")
+	-- Missing db/nb_id/root_path
+	local db = mock_db(nil, nil)
+	t.eq(nil, resolver.resolve_with_conn("note", nil, 1, "/nb"), "resolve: nil db returns nil")
+	t.eq(nil, resolver.resolve_with_conn("note", db, nil, "/nb"), "resolve: nil nb_id returns nil")
+	t.eq(nil, resolver.resolve_with_conn("note", db, 1, nil), "resolve: nil root_path returns nil")
 end
 
 do
 	-- Link text with anchor fragment: only the part before # is matched
-	local conn = mock_conn({}, { { relative_path = "notes/foo.md" } })
-	local result = resolver.resolve_with_conn("Foo#section-1", conn, 1, "/nb")
+	local db = mock_db(nil, "notes/foo.md")
+	local result = resolver.resolve_with_conn("Foo#section-1", db, 1, "/nb")
 	t.eq("/nb/notes/foo.md", result, "resolve: strips anchor fragment before lookup")
 end
 
 do
 	-- Link text with display alias pipe: only the part before | is matched
-	local conn = mock_conn({}, { { relative_path = "notes/bar.md" } })
-	local result = resolver.resolve_with_conn("Bar|Display Text", conn, 1, "/nb")
+	local db = mock_db(nil, "notes/bar.md")
+	local result = resolver.resolve_with_conn("Bar|Display Text", db, 1, "/nb")
 	t.eq("/nb/notes/bar.md", result, "resolve: strips display alias before lookup")
 end
 
@@ -156,4 +155,6 @@ end
 -- Summary
 -- ---------------------------------------------------------------------------
 
-t.summary()
+if arg and arg[0]:find(debug.getinfo(1).source:sub(2)) then
+	t.summary()
+end

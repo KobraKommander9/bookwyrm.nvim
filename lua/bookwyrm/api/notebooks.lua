@@ -121,6 +121,7 @@ function M.get_notebook_by_path(path)
 	return result
 end
 
+
 --- Returns all registered notebooks.
 ---
 --- @return BookwyrmBook[]

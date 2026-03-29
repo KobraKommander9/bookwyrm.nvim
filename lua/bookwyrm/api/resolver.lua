@@ -11,50 +11,33 @@ local M = {}
 --- Checks the `aliases` table first (case-insensitive), then the `notes`
 --- table by title (case-insensitive). Returns the first match found.
 ---
---- @param link_text string  # The raw text inside [[...]], without brackets
---- @param conn      sqlite_db  # A raw sqlite connection (conn.conn in BookwyrmDB)
---- @param nb_id     integer    # The notebook id to search within
---- @param root_path string     # The notebook root path (no trailing slash)
---- @return string?             # Absolute file path, or nil if not found
-function M.resolve_with_conn(link_text, conn, nb_id, root_path)
+--- @param link_text string      # The raw text inside [[...]], without brackets
+--- @param db        BookwyrmDB  # A BookwyrmDB instance
+--- @param nb_id     integer     # The notebook id to search within
+--- @param root_path string      # The notebook root path (no trailing slash)
+--- @return string?              # Absolute file path, or nil if not found
+function M.resolve_with_conn(link_text, db, nb_id, root_path)
 	if not link_text or link_text == "" then
 		return nil
 	end
-	if not conn or not nb_id or not root_path then
+	if not db or not nb_id or not root_path then
 		return nil
 	end
 
-	-- Strip anchor fragment (e.g. "Note#section" → "Note")
+	-- Strip anchor fragment (e.g. "Note#section" → "Note") and display alias
 	local title = link_text:match("^([^#|]+)") or link_text
 	local lower = title:lower()
 
 	-- 1. Check aliases table first (case-insensitive)
-	local alias_rows = conn:eval(
-		[[
-    SELECT n.relative_path FROM aliases a
-    JOIN notes n ON a.note_id = n.id
-    WHERE n.notebook_id = :nb_id AND lower(a.alias) = :alias
-    LIMIT 1
-  ]],
-		{ nb_id = nb_id, alias = lower }
-	)
-
-	if alias_rows and #alias_rows > 0 then
-		return root_path .. "/" .. alias_rows[1].relative_path
+	local alias_path = db.notes:resolve_by_alias(nb_id, lower)
+	if alias_path then
+		return root_path .. "/" .. alias_path
 	end
 
 	-- 2. Fall back to notes table by title (case-insensitive)
-	local note_rows = conn:eval(
-		[[
-    SELECT relative_path FROM notes
-    WHERE notebook_id = :nb_id AND lower(title) = :title
-    LIMIT 1
-  ]],
-		{ nb_id = nb_id, title = lower }
-	)
-
-	if note_rows and #note_rows > 0 then
-		return root_path .. "/" .. note_rows[1].relative_path
+	local note_path = db.notes:resolve_by_title(nb_id, lower)
+	if note_path then
+		return root_path .. "/" .. note_path
 	end
 
 	return nil
@@ -72,11 +55,11 @@ function M.resolve(link_text)
 	end
 
 	local db = state.get_conn()
-	if not db or not db.conn then
+	if not db then
 		return nil
 	end
 
-	return M.resolve_with_conn(link_text, db.conn, state.nb.id, state.nb.root_path)
+	return M.resolve_with_conn(link_text, db, state.nb.id, state.nb.root_path)
 end
 
 --- Extracts the [[...]] link text at the given column on a line.

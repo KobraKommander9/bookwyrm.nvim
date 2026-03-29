@@ -195,4 +195,57 @@ function Note:upsert_note(nb_id, note)
 	return note
 end
 
+--- Resolves a link alias to a note's relative path within a notebook.
+---
+--- @param nb_id integer # The notebook id to search within
+--- @param alias string  # The alias text (matched case-insensitively)
+--- @return string?      # Relative path of the matching note, or nil
+function Note:resolve_by_alias(nb_id, alias)
+	local status, result = pcall(function()
+		local rows = self.conn:eval(
+			[[
+      SELECT n.relative_path FROM aliases a
+      JOIN notes n ON a.note_id = n.id
+      WHERE n.notebook_id = :nb_id AND lower(a.alias) = :alias
+      LIMIT 1
+    ]],
+			{ nb_id = nb_id, alias = alias:lower() }
+		)
+		assert(rows and #rows > 0)
+		return rows[1].relative_path
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
+--- Resolves a note title to its relative path within a notebook.
+---
+--- @param nb_id integer # The notebook id to search within
+--- @param title string  # The title (matched case-insensitively)
+--- @return string?      # Relative path of the matching note, or nil
+function Note:resolve_by_title(nb_id, title)
+	local status, result = pcall(function()
+		local rows = self.conn:eval(
+			[[
+      SELECT relative_path FROM notes
+      WHERE notebook_id = :nb_id AND lower(title) = :title
+      LIMIT 1
+    ]],
+			{ nb_id = nb_id, title = title:lower() }
+		)
+		assert(rows and #rows > 0)
+		return rows[1].relative_path
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
 return Note
