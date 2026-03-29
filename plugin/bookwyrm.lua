@@ -72,6 +72,12 @@ end, { desc = "Open quick capture floating window" })
 -------------------------------------------------------------------------------
 
 vim.api.nvim_create_user_command("BookwyrmFind", function()
+	local mini_ok = pcall(require, "mini.pick")
+	if mini_ok then
+		require("bookwyrm.pickers.mini").find_notes()
+		return
+	end
+
 	local api = require("bookwyrm").api
 	local notify = require("bookwyrm.util.notify")
 	local notes = api.list_notes()
@@ -95,6 +101,12 @@ vim.api.nvim_create_user_command("BookwyrmFind", function()
 end, { desc = "Find a note in the active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
+	local mini_ok = pcall(require, "mini.pick")
+	if mini_ok then
+		require("bookwyrm.pickers.mini").find_notebooks()
+		return
+	end
+
 	local api = require("bookwyrm").api
 	local notify = require("bookwyrm.util.notify")
 	local notebooks = api.list_notebooks()
@@ -116,6 +128,12 @@ vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
 end, { desc = "Switch active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmBacklinks", function()
+	local mini_ok = pcall(require, "mini.pick")
+	if mini_ok then
+		require("bookwyrm.pickers.mini").find_backlinks()
+		return
+	end
+
 	local api = require("bookwyrm").api
 	local notify = require("bookwyrm.util.notify")
 	local file_path = vim.api.nvim_buf_get_name(0)
