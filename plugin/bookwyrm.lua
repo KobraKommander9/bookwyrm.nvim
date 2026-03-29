@@ -66,3 +66,74 @@ end, { desc = "Create note in active notebook" })
 vim.api.nvim_create_user_command("BookwyrmCapture", function()
 	require("bookwyrm").api.capture()
 end, { desc = "Open quick capture floating window" })
+
+-------------------------------------------------------------------------------
+--- Pickers
+-------------------------------------------------------------------------------
+
+vim.api.nvim_create_user_command("BookwyrmFind", function()
+	local api = require("bookwyrm").api
+	local notify = require("bookwyrm.util.notify")
+	local notes = api.list_notes()
+	if vim.tbl_isempty(notes) then
+		notify.info("No notes found in active notebook")
+		return
+	end
+
+	local nb = api.get_active_notebook(true)
+
+	vim.ui.select(notes, {
+		prompt = "Find Note",
+		format_item = function(note)
+			return note.title
+		end,
+	}, function(note)
+		if note and nb then
+			api.open(nb.root_path .. "/" .. note.relative_path)
+		end
+	end)
+end, { desc = "Find a note in the active notebook" })
+
+vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
+	local api = require("bookwyrm").api
+	local notify = require("bookwyrm.util.notify")
+	local notebooks = api.list_notebooks()
+	if vim.tbl_isempty(notebooks) then
+		notify.info("No notebooks registered")
+		return
+	end
+
+	vim.ui.select(notebooks, {
+		prompt = "Find Notebook",
+		format_item = function(nb)
+			return nb.title
+		end,
+	}, function(nb)
+		if nb then
+			api.set_active_notebook(nb.id)
+		end
+	end)
+end, { desc = "Switch active notebook" })
+
+vim.api.nvim_create_user_command("BookwyrmBacklinks", function()
+	local api = require("bookwyrm").api
+	local notify = require("bookwyrm.util.notify")
+	local file_path = vim.api.nvim_buf_get_name(0)
+	local backlinks = api.get_backlinks(file_path)
+
+	if vim.tbl_isempty(backlinks) then
+		notify.info("No backlinks found for current buffer")
+		return
+	end
+
+	vim.ui.select(backlinks, {
+		prompt = "Backlinks",
+		format_item = function(link)
+			return link.source_title
+		end,
+	}, function(link)
+		if link then
+			api.open(link.source_path)
+		end
+	end)
+end, { desc = "Show backlinks for the current buffer" })
