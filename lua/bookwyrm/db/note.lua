@@ -258,8 +258,9 @@ end
 
 --- Searches notes in a notebook by matching text against titles, aliases, and tags.
 ---
---- Returns matching notes with a `display` field containing title, tags, and
---- aliases concatenated for picker fuzzy matching.
+--- Returns matching notes with raw `_tags` and `_aliases` fields (comma-separated
+--- strings from GROUP_CONCAT) alongside standard note fields.  Callers such as
+--- picker implementations are responsible for formatting these fields for display.
 ---
 --- @param nb_id integer # The notebook id to search within
 --- @param text  string  # Case-insensitive substring to match
@@ -292,23 +293,6 @@ function Note:search(nb_id, text)
 	if not status then
 		notify.error("failed to search notes: " .. tostring(result), self.silent)
 		return {}
-	end
-
-	for _, row in ipairs(result) do
-		local parts = { row.title }
-		if row._tags and row._tags ~= "" then
-			for tag in row._tags:gmatch("[^,]+") do
-				table.insert(parts, "#" .. tag)
-			end
-		end
-		if row._aliases and row._aliases ~= "" then
-			for alias in row._aliases:gmatch("[^,]+") do
-				table.insert(parts, alias)
-			end
-		end
-		row.display = table.concat(parts, " ")
-		row._tags = nil
-		row._aliases = nil
 	end
 
 	return result
