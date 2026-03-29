@@ -222,6 +222,40 @@ function Note:resolve_by_alias(nb_id, alias)
 	return result
 end
 
+--- Returns all notes within a notebook that contain a link pointing to the
+--- given relative path (the target note).
+---
+--- @param nb_id         integer # The notebook id to search within
+--- @param relative_path string  # Relative path of the target note (within the notebook)
+--- @return BookwyrmBacklink[]
+function Note:get_backlinks(nb_id, relative_path)
+	local status, result = pcall(function()
+		local rows = self.conn:eval(
+			[[
+      SELECT
+        src.title        AS source_title,
+        src.relative_path AS source_path,
+        l.target_anchor  AS anchor,
+        l.context        AS context
+      FROM links l
+      JOIN notes src ON l.note_id = src.id
+      JOIN notes tgt ON l.target_note_id = tgt.id
+      WHERE src.notebook_id = :nb_id
+        AND tgt.notebook_id = :nb_id
+        AND tgt.relative_path = :relative_path
+    ]],
+			{ nb_id = nb_id, relative_path = relative_path }
+		)
+		return rows or {}
+	end)
+
+	if not status then
+		return {}
+	end
+
+	return result
+end
+
 --- Resolves a note title to the matching note within a notebook.
 ---
 --- @param nb_id integer # The notebook id to search within

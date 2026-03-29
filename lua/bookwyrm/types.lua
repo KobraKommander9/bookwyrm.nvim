@@ -54,6 +54,12 @@
 --- @field tags BookwyrmTag[]
 --- @field tasks BookwyrmTask[]
 
+--- @class BookwyrmBacklink
+--- @field source_title string  # Title of the linking note
+--- @field source_path  string  # Absolute path of the linking note
+--- @field anchor       string? # Target anchor id, if any
+--- @field context      string? # Surrounding text from the link row
+
 --- @class BookwyrmBook
 --- @field id integer # Noteboook ID
 --- @field is_default boolean # If the notebook is the default active
