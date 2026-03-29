@@ -181,6 +181,28 @@ function M.open(path)
 	hooks.fire("note_opened", { path = path })
 end
 
+--- Opens a note entry (as returned by `list_notes()` or `search_notes()`) in
+--- the current window.
+---
+--- Resolves the absolute path by looking up the owning notebook via
+--- `entry.notebook_id`, then delegates to `M.open`.
+---
+--- @param entry BookwyrmNote # A note entry returned by list_notes or search_notes
+function M.open_note(entry)
+	if not entry then
+		notify.warn("No entry provided", state.cfg.silent)
+		return
+	end
+
+	local nb = state.get_conn().notebooks:get_by_id(entry.notebook_id)
+	if not nb then
+		notify.error("Could not find notebook for note", state.cfg.silent)
+		return
+	end
+
+	M.open(nb.root_path .. "/" .. entry.relative_path)
+end
+
 --- Scans the active notebook directory, parses each markdown file with
 --- parser.lua, and upserts all notes into the database.
 function M.sync()
