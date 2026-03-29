@@ -258,9 +258,10 @@ end
 
 --- Searches notes in a notebook by matching text against titles, aliases, and tags.
 ---
---- Returns matching notes with raw `_tags` and `_aliases` fields (comma-separated
---- strings from GROUP_CONCAT) alongside standard note fields.  Callers such as
---- picker implementations are responsible for formatting these fields for display.
+--- Returns matching notes with `tags` and `aliases` fields populated as
+--- comma-separated strings (from GROUP_CONCAT) rather than the object arrays
+--- defined on BookwyrmNote.  Callers such as picker implementations are
+--- responsible for formatting these fields for display.
 ---
 --- @param nb_id integer # The notebook id to search within
 --- @param text  string  # Case-insensitive substring to match
@@ -272,8 +273,8 @@ function Note:search(nb_id, text)
 			[[
       SELECT DISTINCT
         n.id, n.notebook_id, n.relative_path, n.title, n.fsize, n.mtime,
-        GROUP_CONCAT(DISTINCT t.tag)   AS _tags,
-        GROUP_CONCAT(DISTINCT a.alias) AS _aliases
+        GROUP_CONCAT(DISTINCT t.tag)   AS tags,
+        GROUP_CONCAT(DISTINCT a.alias) AS aliases
       FROM notes n
       LEFT JOIN tags    t ON t.note_id = n.id
       LEFT JOIN aliases a ON a.note_id = n.id
