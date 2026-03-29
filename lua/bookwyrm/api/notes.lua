@@ -283,16 +283,23 @@ function M.sync_buffer(bufnr)
 	state.get_conn().notes:upsert_note(nb.id, note)
 end
 
---- Lists all registered notes.
+--- @class BookwyrmListNotesOpts
+--- @field nb_id integer? # The id of the notebook to list in, defaults to the active notebook.
+
+--- Lists all notes in the active (or specified) notebook.
 ---
---- @param nb_id integer? # The id of the notebook to list in, defaults to all notebooks.
+--- Returns an empty list when no active notebook is set. The optional `opts`
+--- table is reserved for future filtering extensions.
+---
+--- @param opts BookwyrmListNotesOpts?
 --- @return BookwyrmNote[]
-function M.list_notes(nb_id)
+function M.list_notes(opts)
 	state.ensure_active()
 	if not state.nb then
 		return {}
 	end
 
+	local nb_id = (opts and opts.nb_id) or state.get_active_id()
 	return state.get_conn().notes:list(nb_id)
 end
 
