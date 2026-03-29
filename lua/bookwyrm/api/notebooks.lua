@@ -131,12 +131,22 @@ end
 
 --- Updates the active notebook in state.
 ---
---- Accepts an entry table as returned by `list_notebooks()`, making it
---- suitable for direct use as a picker action callback.
+--- Accepts either a `BookwyrmBook` entry table (as returned by `list_notebooks()`)
+--- or a plain integer notebook id.  Passing an entry table avoids a secondary DB
+--- round-trip and makes the function suitable as a direct picker action callback.
 ---
---- @param entry BookwyrmBook # A notebook entry as returned by `list_notebooks()`
+--- @param entry BookwyrmBook|integer # A notebook entry table or integer id
 --- @return BookwyrmBook? # The newly active notebook
 function M.set_active_notebook(entry)
+	if type(entry) == "number" then
+		local id = entry
+		entry = state.get_conn().notebooks:get_by_id(id)
+		if not entry then
+			notify.error("notebook not found: " .. tostring(id), state.cfg.silent)
+			return nil
+		end
+	end
+
 	if not entry or not entry.id then
 		notify.error("invalid notebook entry", state.cfg.silent)
 		return nil
