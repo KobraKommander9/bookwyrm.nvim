@@ -422,4 +422,22 @@ function M.get_backlinks(file_path)
 	return results
 end
 
+--- Inserts a `[[note title]]` wikilink at the given cursor position in the given buffer.
+---
+--- @param entry BookwyrmNote # A note entry as returned by `list_notes()` or `search_notes()`
+--- @param bufnr integer # The target buffer number
+--- @param cursor integer[] # The cursor position as `{ row, col }` (1-indexed row, 1-indexed col)
+function M.insert_link(entry, bufnr, cursor)
+	if not entry or not entry.title then
+		notify.warn("insert_link: entry must have a title field")
+		return
+	end
+
+	local row = cursor[1] - 1 -- nvim_buf_set_text uses 0-indexed rows
+	local col = cursor[2] - 1 -- nvim_buf_set_text uses 0-indexed cols
+	local link = "[[" .. entry.title .. "]]"
+
+	vim.api.nvim_buf_set_text(bufnr, row, col, row, col, { link })
+end
+
 return M
