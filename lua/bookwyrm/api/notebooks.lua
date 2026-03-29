@@ -100,6 +100,28 @@ function M.delete_notebook(id)
 	state.get_conn().notebooks:delete(target_id)
 end
 
+--- Returns the notebook whose root path contains the given path.
+---
+--- @param path string? # Absolute path to check; defaults to current buffer's file
+--- @return BookwyrmBook?
+function M.get_notebook_by_path(path)
+	path = path or vim.api.nvim_buf_get_name(0)
+	if not path or path == "" then
+		return nil
+	end
+
+	local status, result = pcall(function()
+		return state.get_conn().notebooks:get_by_path(path)
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
+
 --- Returns all registered notebooks.
 ---
 --- @return BookwyrmBook[]
