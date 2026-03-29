@@ -129,6 +129,14 @@ function M.list_notebooks()
 	return state.get_conn().notebooks:list()
 end
 
+--- Returns all registered notebooks as a list of BookwyrmBook tables.
+--- Alias for list_notebooks(); intended for use as a picker data source.
+---
+--- @return BookwyrmBook[]
+function M.get_notebooks()
+	return state.get_conn().notebooks:list()
+end
+
 --- Updates the active notebook in state.
 ---
 --- @param id integer # The id of the notebook to set as active
