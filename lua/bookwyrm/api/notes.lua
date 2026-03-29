@@ -315,10 +315,8 @@ end
 --- case-insensitive substring matching.  Fuzzy refinement is left to the
 --- caller (e.g. a picker).
 ---
---- Each entry has the same fields as `list_notes()`.  The `tags` and `aliases`
---- fields are populated as comma-separated strings rather than object arrays.
---- Picker implementations are responsible for using these fields to build any
---- display or fuzzy-match string.
+--- Each entry has the same fields as `list_notes()`, including `tags` as
+--- `BookwyrmTag[]` and `aliases` as `BookwyrmAlias[]` object arrays.
 ---
 --- Returns an empty list when no active notebook is set.  Returns all notes
 --- when `query.text` is nil or empty (equivalent to `list_notes()`).

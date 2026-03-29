@@ -258,10 +258,8 @@ end
 
 --- Searches notes in a notebook by matching text against titles, aliases, and tags.
 ---
---- Returns matching notes with `tags` and `aliases` fields populated as
---- comma-separated strings (from GROUP_CONCAT) rather than the object arrays
---- defined on BookwyrmNote.  Callers such as picker implementations are
---- responsible for formatting these fields for display.
+--- Returns matching notes with `tags` as `BookwyrmTag[]` and `aliases` as
+--- `BookwyrmAlias[]` arrays, matching the full shape of `BookwyrmNote`.
 ---
 --- @param nb_id integer # The notebook id to search within
 --- @param text  string  # Case-insensitive substring to match
@@ -271,10 +269,7 @@ function Note:search(nb_id, text)
 		local pattern = "%" .. text:lower() .. "%"
 		local rows = self.conn:eval(
 			[[
-      SELECT DISTINCT
-        n.id, n.notebook_id, n.relative_path, n.title, n.fsize, n.mtime,
-        GROUP_CONCAT(DISTINCT t.tag)   AS tags,
-        GROUP_CONCAT(DISTINCT a.alias) AS aliases
+      SELECT DISTINCT n.id, n.notebook_id, n.relative_path, n.title, n.fsize, n.mtime
       FROM notes n
       LEFT JOIN tags    t ON t.note_id = n.id
       LEFT JOIN aliases a ON a.note_id = n.id
@@ -288,7 +283,16 @@ function Note:search(nb_id, text)
     ]],
 			{ nb_id = nb_id, pattern = pattern }
 		)
-		return rows or {}
+		if not rows then
+			return {}
+		end
+
+		for _, note in ipairs(rows) do
+			note.tags = self.conn:select("tags", { where = { note_id = note.id } }) or {}
+			note.aliases = self.conn:select("aliases", { where = { note_id = note.id } }) or {}
+		end
+
+		return rows
 	end)
 
 	if not status then
