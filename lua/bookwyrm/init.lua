@@ -9,7 +9,6 @@ M.api = require("bookwyrm.api")
 
 --- @class BookwyrmOpts
 --- @field data_path string? # The base path for the bookwyrm data
---- @field daily_note_dir string? # Directory (relative to notebook root) for daily notes. Defaults to "daily"
 --- @field disable_hooks boolean? # If true will disable hook registration
 --- @field mappings BookwyrmMappings? # Key mapping overrides
 --- @field note_capture BookwyrmCaptureNoteOpts? # Capture note options
@@ -17,7 +16,6 @@ M.api = require("bookwyrm.api")
 --- @field templates table<string, BookwyrmNoteTemplate>? # Note templates
 local defaults = {
 	data_path = vim.fn.stdpath("data") .. "/bookwyrm",
-	daily_note_dir = "daily",
 	mappings = {
 		close = "q",
 		save = "<C-s>",
@@ -38,7 +36,7 @@ local defaults = {
 	templates = {
 		journal = {
 			header = "### Capture: {{time}}",
-			path = "journals/{{date}}",
+			path = "daily/{{date}}",
 		},
 		todo = {
 			header = false,

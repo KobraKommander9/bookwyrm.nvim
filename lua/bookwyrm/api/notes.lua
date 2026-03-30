@@ -3,7 +3,6 @@ local M = {}
 
 local hooks = require("bookwyrm.api.hooks")
 local notify = require("bookwyrm.util.notify")
-local parser = require("bookwyrm.parser")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
 
@@ -104,7 +103,7 @@ end
 
 --- Opens a floating buffer pre-populated with a note template for quick capture.
 ---
---- The floating window uses `relative = "editor"` and is centered on screen.
+--- The floating window uses `relative = "editor"` and is anchored to the top-right.
 --- Template variables ({{date}}, {{time}}, {{datetime}}, {{notebook}}) are
 --- expanded at open time, not at write time.
 ---
@@ -143,8 +142,8 @@ function M.capture(opts)
 		relative = "editor",
 		width = width,
 		height = height,
-		row = math.floor((vim.o.lines - height) / 2),
-		col = math.floor((vim.o.columns - width) / 2),
+		row = 1,
+		col = vim.o.columns - width - 2,
 		style = "minimal",
 		border = "rounded",
 		title = " Quick Capture [" .. state.nb.title .. "] " .. (opts.tname and "(" .. opts.tname .. ") " or ""),
@@ -159,9 +158,6 @@ function M.capture(opts)
 		local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 		vim.api.nvim_win_close(win, true)
 		M.capture_note(lines, opts)
-		if vim.api.nvim_win_is_valid(orig_win) then
-			vim.api.nvim_set_current_win(orig_win)
-		end
 	end
 
 	local function discard()
@@ -173,126 +169,8 @@ function M.capture(opts)
 
 	vim.keymap.set("n", state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
 	vim.keymap.set("i", state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
-	vim.keymap.set({ "n", "i" }, "<CR>", submit, { buffer = buf, desc = "Save Capture" })
 
 	vim.keymap.set("n", state.cfg.mappings.close, discard, { buffer = buf, desc = "Discard Capture" })
-	vim.keymap.set({ "n", "i" }, "<Esc>", discard, { buffer = buf, desc = "Discard Capture" })
-	vim.keymap.set({ "n", "i" }, "<C-c>", discard, { buffer = buf, desc = "Discard Capture" })
-end
-
---- Extracts tag names from the lines of a buffer using the parser.
----
---- @param bufnr integer
---- @return string[]
-local function get_buffer_tags(bufnr)
-	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-	local result = parser.parse(lines)
-	local tag_names = {}
-	for _, t in ipairs(result.tags or {}) do
-		table.insert(tag_names, t.tag)
-	end
-	return tag_names
-end
-
---- Opens a small centered floating window for stream-of-thought journal capture.
----
---- The entered text is appended to the current daily note
---- (`daily_note_dir/YYYY-MM-DD.md`) with a `[HH:MM]` timestamp prefix and any
---- tags that are active in the buffer at invocation time.  The daily note file
---- is created when it does not yet exist.
----
---- Key bindings inside the float:
----   `<CR>` / `<C-s>`  — confirm and append
----   `<Esc>` / `<C-c>` — discard and close
----
---- @param opts { tname: string? }?
-function M.capture_journal(opts)
-	opts = opts or {}
-
-	state.ensure_active()
-	if not state.nb then
-		notify.error("No notebook available")
-		return
-	end
-
-	-- Snapshot context from the invoking buffer before opening the float.
-	local orig_win = vim.api.nvim_get_current_win()
-	local orig_buf = vim.api.nvim_get_current_buf()
-	local context_tags = get_buffer_tags(orig_buf)
-
-	-- Resolve the daily note path.
-	local daily_dir = state.cfg.daily_note_dir or "daily"
-	local date_str = os.date("%Y-%m-%d") --[[@as string]]
-	local rel_path = daily_dir .. "/" .. date_str .. ".md"
-	local full_path = state.nb.root_path .. "/" .. rel_path
-	paths.ensure_dir(vim.fn.fnamemodify(full_path, ":h"))
-
-	-- Build a small centered input float (3 lines tall by default).
-	local width = math.min(math.ceil(vim.o.columns * 0.6), 80)
-	local height = 3
-	local buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
-	vim.api.nvim_set_option_value("filetype", "markdown", { buf = buf })
-
-	local win = vim.api.nvim_open_win(buf, true, {
-		relative = "editor",
-		width = width,
-		height = height,
-		row = math.floor((vim.o.lines - height) / 2),
-		col = math.floor((vim.o.columns - width) / 2),
-		style = "minimal",
-		border = "rounded",
-		title = " Journal Capture [" .. os.date("%Y-%m-%d") .. "] ",
-		title_pos = "center",
-	})
-	vim.api.nvim_set_option_value("wrap", true, { win = win })
-
-	-- Start in insert mode for immediate typing.
-	vim.cmd("startinsert")
-
-	local function submit()
-		local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-		vim.api.nvim_win_close(win, true)
-
-		-- Filter empty lines and build entries.
-		local timestamp = "[" .. os.date("%H:%M") .. "]"
-		local tag_suffix = #context_tags > 0 and (" #" .. table.concat(context_tags, " #")) or ""
-
-		local entries = {}
-		for _, line in ipairs(lines) do
-			if line ~= "" then
-				table.insert(entries, timestamp .. " " .. line .. tag_suffix)
-			end
-		end
-
-		if #entries > 0 then
-			local f = io.open(full_path, "a")
-			if f then
-				f:write(table.concat(entries, "\n") .. "\n")
-				f:close()
-				M.sync_file(full_path)
-				hooks.fire("note_captured", { path = full_path })
-			else
-				notify.error("Failed to open daily note: " .. full_path, state.cfg.silent)
-			end
-		end
-
-		if vim.api.nvim_win_is_valid(orig_win) then
-			vim.api.nvim_set_current_win(orig_win)
-		end
-	end
-
-	local function discard()
-		vim.api.nvim_win_close(win, true)
-		if vim.api.nvim_win_is_valid(orig_win) then
-			vim.api.nvim_set_current_win(orig_win)
-		end
-	end
-
-	vim.keymap.set({ "n", "i" }, "<CR>", submit, { buffer = buf, desc = "Append to daily note" })
-	vim.keymap.set({ "n", "i" }, "<C-s>", submit, { buffer = buf, desc = "Append to daily note" })
-	vim.keymap.set({ "n", "i" }, "<Esc>", discard, { buffer = buf, desc = "Discard journal capture" })
-	vim.keymap.set({ "n", "i" }, "<C-c>", discard, { buffer = buf, desc = "Discard journal capture" })
 end
 
 --- Opens a note file in the current window.
