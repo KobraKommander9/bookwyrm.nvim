@@ -7,6 +7,10 @@ vim.api.nvim_create_user_command("BookwyrmSync", function()
 	require("bookwyrm").api.sync()
 end, { desc = "Sync active notebook with filesystem" })
 
+vim.api.nvim_create_user_command("BookwyrmReset", function()
+	require("bookwyrm").api.reset()
+end, { desc = "Drop and re-scan the active notebook database" })
+
 -------------------------------------------------------------------------------
 --- Notebooks
 -------------------------------------------------------------------------------
