@@ -3,7 +3,6 @@ local M = {}
 
 local hooks = require("bookwyrm.api.hooks")
 local notify = require("bookwyrm.util.notify")
-local parser = require("bookwyrm.parser")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
 
@@ -112,9 +111,9 @@ end
 
 --- Opens a floating buffer pre-populated with a note template for quick capture.
 ---
---- The floating window uses `relative = "editor"` and is anchored to the
---- top-right corner. Template variables ({{date}}, {{time}}, {{datetime}},
---- {{notebook}}) are expanded at open time, not at write time.
+--- The floating window uses `relative = "editor"` and is anchored to the top-right.
+--- Template variables ({{date}}, {{time}}, {{datetime}}, {{notebook}}) are
+--- expanded at open time, not at write time.
 ---
 --- @param opts BookwyrmAPI.CaptureOpts?
 function M.capture(opts)
@@ -131,6 +130,7 @@ function M.capture(opts)
 	local template = state.cfg.templates[opts.tname or ""] or {}
 	local vars = get_template_variables(template.variables)
 
+	local orig_win = vim.api.nvim_get_current_win()
 	local buf = vim.api.nvim_create_buf(false, true)
 	for k, v in pairs(opts.buffer) do
 		vim.api.nvim_set_option_value(k, v, { buf = buf })
@@ -150,8 +150,8 @@ function M.capture(opts)
 		relative = "editor",
 		width = width,
 		height = height,
-		row = 0,
-		col = vim.o.columns - width,
+		row = 1,
+		col = vim.o.columns - width - 2,
 		style = "minimal",
 		border = "rounded",
 		title = " Quick Capture [" .. state.nb.title .. "] " .. (opts.tname and "(" .. opts.tname .. ") " or ""),
@@ -164,16 +164,21 @@ function M.capture(opts)
 
 	local function submit()
 		local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-		M.capture_note(lines, opts)
 		vim.api.nvim_win_close(win, true)
+		M.capture_note(lines, opts)
+	end
+
+	local function discard()
+		vim.api.nvim_win_close(win, true)
+		if vim.api.nvim_win_is_valid(orig_win) then
+			vim.api.nvim_set_current_win(orig_win)
+		end
 	end
 
 	vim.keymap.set("n", state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
 	vim.keymap.set("i", state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
 
-	vim.keymap.set("n", state.cfg.mappings.close, function()
-		vim.api.nvim_win_close(win, true)
-	end, { buffer = buf, desc = "Discard Capture" })
+	vim.keymap.set("n", state.cfg.mappings.close, discard, { buffer = buf, desc = "Discard Capture" })
 end
 
 --- Opens a note file in the current window.

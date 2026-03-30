@@ -37,7 +37,7 @@ local defaults = {
 	templates = {
 		journal = {
 			header = "### Capture: {{time}}",
-			path = "journals/{{date}}",
+			path = "daily/{{date}}",
 		},
 		todo = {
 			header = false,
