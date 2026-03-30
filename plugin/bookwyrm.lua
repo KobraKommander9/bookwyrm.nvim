@@ -76,14 +76,14 @@ end, { desc = "Open quick capture floating window" })
 -------------------------------------------------------------------------------
 
 vim.api.nvim_create_user_command("BookwyrmFind", function()
-	local notify = require("bookwyrm.util.notify")
-	local api = require("bookwyrm").api
-	local notes = api.list_notes()
-	if vim.tbl_isempty(notes) then
-		notify.info("No notes found in active notebook")
+	local mini_ok = pcall(require, "mini.pick")
+	if mini_ok then
+		require("bookwyrm.pickers.mini").find_notes()
 		return
 	end
 
+	local api = require("bookwyrm").api
+	local notes = api.list_notes()
 	local nb = api.get_active_notebook(true)
 
 	vim.ui.select(notes, {
@@ -99,13 +99,14 @@ vim.api.nvim_create_user_command("BookwyrmFind", function()
 end, { desc = "Find a note in the active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
-	local notify = require("bookwyrm.util.notify")
-	local api = require("bookwyrm").api
-	local notebooks = api.list_notebooks()
-	if vim.tbl_isempty(notebooks) then
-		notify.info("No notebooks registered")
+	local mini_ok = pcall(require, "mini.pick")
+	if mini_ok then
+		require("bookwyrm.pickers.mini").find_notebooks()
 		return
 	end
+
+	local api = require("bookwyrm").api
+	local notebooks = api.list_notebooks()
 
 	vim.ui.select(notebooks, {
 		prompt = "Find Notebook",
@@ -120,15 +121,15 @@ vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
 end, { desc = "Switch active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmBacklinks", function()
-	local notify = require("bookwyrm.util.notify")
+	local mini_ok = pcall(require, "mini.pick")
+	if mini_ok then
+		require("bookwyrm.pickers.mini").find_backlinks()
+		return
+	end
+
 	local api = require("bookwyrm").api
 	local file_path = vim.api.nvim_buf_get_name(0)
 	local backlinks = api.get_backlinks(file_path)
-
-	if vim.tbl_isempty(backlinks) then
-		notify.info("No backlinks found for current buffer")
-		return
-	end
 
 	vim.ui.select(backlinks, {
 		prompt = "Backlinks",
