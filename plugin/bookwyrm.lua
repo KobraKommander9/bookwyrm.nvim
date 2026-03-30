@@ -79,10 +79,8 @@ vim.api.nvim_create_user_command("BookwyrmFind", function()
 	end
 
 	local api = require("bookwyrm").api
-	local notify = require("bookwyrm.util.notify")
 	local notes = api.list_notes()
 	if vim.tbl_isempty(notes) then
-		notify.info("No notes found in active notebook")
 		return
 	end
 
@@ -108,10 +106,8 @@ vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
 	end
 
 	local api = require("bookwyrm").api
-	local notify = require("bookwyrm.util.notify")
 	local notebooks = api.list_notebooks()
 	if vim.tbl_isempty(notebooks) then
-		notify.info("No notebooks registered")
 		return
 	end
 
@@ -135,12 +131,10 @@ vim.api.nvim_create_user_command("BookwyrmBacklinks", function()
 	end
 
 	local api = require("bookwyrm").api
-	local notify = require("bookwyrm.util.notify")
 	local file_path = vim.api.nvim_buf_get_name(0)
 	local backlinks = api.get_backlinks(file_path)
 
 	if vim.tbl_isempty(backlinks) then
-		notify.info("No backlinks found for current buffer")
 		return
 	end
 

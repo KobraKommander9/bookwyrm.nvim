@@ -17,7 +17,7 @@ local M = {}
 local function has_mini_pick()
 	local ok = pcall(require, "mini.pick")
 	if not ok then
-		vim.notify("[bookwyrm] mini.pick is not installed", vim.log.levels.ERROR)
+		require("bookwyrm.util.notify").error("mini.pick is not installed")
 		return false
 	end
 	return true
@@ -38,11 +38,9 @@ function M.find_notes()
 
 	local MiniPick = require("mini.pick")
 	local api = require("bookwyrm").api
-	local notify = require("bookwyrm.util.notify")
 
 	local notes = api.list_notes()
 	if vim.tbl_isempty(notes) then
-		notify.info("No notes found in active notebook")
 		return
 	end
 
@@ -114,11 +112,9 @@ function M.find_notebooks()
 
 	local MiniPick = require("mini.pick")
 	local api = require("bookwyrm").api
-	local notify = require("bookwyrm.util.notify")
 
 	local notebooks = api.list_notebooks()
 	if vim.tbl_isempty(notebooks) then
-		notify.info("No notebooks registered")
 		return
 	end
 
@@ -159,13 +155,11 @@ function M.find_backlinks()
 
 	local MiniPick = require("mini.pick")
 	local api = require("bookwyrm").api
-	local notify = require("bookwyrm.util.notify")
 
 	local file_path = vim.api.nvim_buf_get_name(0)
 	local backlinks = api.get_backlinks(file_path)
 
 	if vim.tbl_isempty(backlinks) then
-		notify.info("No backlinks found for current buffer")
 		return
 	end
 
@@ -176,7 +170,7 @@ function M.find_backlinks()
 			display = display .. "  ^" .. link.anchor
 		end
 		if link.context and link.context ~= "" then
-			display = display .. "  \xe2\x80\x94 " .. link.context
+			display = display .. "  — " .. link.context
 		end
 		table.insert(items, { text = display, link = link })
 	end
