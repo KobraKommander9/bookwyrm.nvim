@@ -13,6 +13,7 @@ M.api = require("bookwyrm.api")
 --- @field mappings BookwyrmMappings? # Key mapping overrides
 --- @field note_capture BookwyrmCaptureNoteOpts? # Capture note options
 --- @field silent boolean? # If true silences notifications
+--- @field template_variables table<string, string|fun(): string>? # Global template variables (strings or zero-arg functions)
 --- @field templates table<string, BookwyrmNoteTemplate>? # Note templates
 local defaults = {
 	data_path = vim.fn.stdpath("data") .. "/bookwyrm",
