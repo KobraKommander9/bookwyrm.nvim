@@ -25,9 +25,10 @@ end
 --- mini.pick's fuzzy engine can filter on all three fields.
 ---
 --- Selecting a note opens it in the current window.
---- Press <C-l> to insert a [[note title]] wikilink at the calling buffer's cursor.
+--- Press the insert-link key (default: <C-l>) to insert a [[note title]] wikilink
+--- at the calling buffer's cursor.
 ---
---- @param opts? { mappings?: table } Optional overrides/additions to the picker mappings.
+--- @param opts? { insert_link_key?: string } Key to bind to the insert-link action (default: "<C-l>").
 function M.find_notes(opts)
 	if not has_mini_pick() then
 		return
@@ -68,9 +69,9 @@ function M.find_notes(opts)
 		table.insert(items, { text = display, note = note })
 	end
 
-	local mappings = vim.tbl_deep_extend("force", {
+	local mappings = {
 		insert_link = {
-			char = "<C-l>",
+			char = opts.insert_link_key or "<C-l>",
 			func = function()
 				local matches = MiniPick.get_picker_matches()
 				local item = matches and matches.current
@@ -81,7 +82,7 @@ function M.find_notes(opts)
 				end
 			end,
 		},
-	}, opts.mappings or {})
+	}
 
 	MiniPick.start({
 		source = {
