@@ -26,6 +26,14 @@ local function get_template_variables(extra)
 		time = os.date("%H:%M"),
 	}
 
+	for key, val in pairs(state.cfg.template_variables or {}) do
+		if type(val) == "function" then
+			vars[key] = val()
+		else
+			vars[key] = val
+		end
+	end
+
 	for key, val in pairs(extra or {}) do
 		if type(val) == "function" then
 			vars[key] = val()
