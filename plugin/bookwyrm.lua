@@ -3,8 +3,6 @@ if vim.g.loaded_bookwyrm then
 end
 vim.g.loaded_bookwyrm = true
 
-local notify = require("bookwyrm.util.notify")
-
 vim.api.nvim_create_user_command("BookwyrmSync", function()
 	require("bookwyrm").api.sync()
 end, { desc = "Sync active notebook with filesystem" })
@@ -74,6 +72,7 @@ end, { desc = "Open quick capture floating window" })
 -------------------------------------------------------------------------------
 
 vim.api.nvim_create_user_command("BookwyrmFind", function()
+	local notify = require("bookwyrm.util.notify")
 	local api = require("bookwyrm").api
 	local notes = api.list_notes()
 	if vim.tbl_isempty(notes) then
@@ -96,6 +95,7 @@ vim.api.nvim_create_user_command("BookwyrmFind", function()
 end, { desc = "Find a note in the active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
+	local notify = require("bookwyrm.util.notify")
 	local api = require("bookwyrm").api
 	local notebooks = api.list_notebooks()
 	if vim.tbl_isempty(notebooks) then
@@ -116,6 +116,7 @@ vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
 end, { desc = "Switch active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmBacklinks", function()
+	local notify = require("bookwyrm.util.notify")
 	local api = require("bookwyrm").api
 	local file_path = vim.api.nvim_buf_get_name(0)
 	local backlinks = api.get_backlinks(file_path)
