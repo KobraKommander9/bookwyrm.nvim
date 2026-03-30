@@ -76,6 +76,12 @@ end, { desc = "Open journal capture floating window for stream-of-thought notes"
 -------------------------------------------------------------------------------
 
 vim.api.nvim_create_user_command("BookwyrmFind", function()
+	local telescope_ok = pcall(require, "telescope")
+	if telescope_ok then
+		require("telescope").extensions.bookwyrm.find_notes()
+		return
+	end
+
 	local mini_ok = pcall(require, "mini.pick")
 	if mini_ok then
 		require("bookwyrm.pickers.mini").find_notes()
@@ -99,6 +105,12 @@ vim.api.nvim_create_user_command("BookwyrmFind", function()
 end, { desc = "Find a note in the active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
+	local telescope_ok = pcall(require, "telescope")
+	if telescope_ok then
+		require("telescope").extensions.bookwyrm.find_notebooks()
+		return
+	end
+
 	local mini_ok = pcall(require, "mini.pick")
 	if mini_ok then
 		require("bookwyrm.pickers.mini").find_notebooks()
@@ -121,6 +133,12 @@ vim.api.nvim_create_user_command("BookwyrmFindNotebook", function()
 end, { desc = "Switch active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmBacklinks", function()
+	local telescope_ok = pcall(require, "telescope")
+	if telescope_ok then
+		require("telescope").extensions.bookwyrm.backlinks()
+		return
+	end
+
 	local mini_ok = pcall(require, "mini.pick")
 	if mini_ok then
 		require("bookwyrm.pickers.mini").find_backlinks()
