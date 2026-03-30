@@ -1,5 +1,7 @@
 local M = {}
 
+local decorations = require("bookwyrm.decorations")
+local highlights = require("bookwyrm.highlights")
 local hooks = require("bookwyrm.hooks")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
@@ -64,6 +66,9 @@ function M.setup(opts)
 		hooks.setup_watchdog()
 		hooks.setup_navigation()
 	end
+
+	highlights.setup()
+	decorations.setup()
 end
 
 return M
