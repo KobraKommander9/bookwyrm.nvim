@@ -64,8 +64,8 @@ vim.api.nvim_create_user_command("BookwyrmNoteCreate", function()
 end, { desc = "Create note in active notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmCapture", function()
-	require("bookwyrm").api.capture()
-end, { desc = "Open quick capture floating window" })
+	require("bookwyrm").api.capture_journal()
+end, { desc = "Open journal capture floating window for stream-of-thought notes" })
 
 -------------------------------------------------------------------------------
 --- Pickers

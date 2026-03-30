@@ -19,6 +19,7 @@ local notify = require("bookwyrm.util.notify")
 
 --- @class BookwyrmConfig
 --- @field data_path string
+--- @field daily_note_dir string # Directory (relative to notebook root) for daily notes
 --- @field db_path string
 --- @field mappings BookwyrmMappings
 --- @field note_capture BookwyrmCaptureNoteOpts
