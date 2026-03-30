@@ -211,6 +211,30 @@ function M.open_note(entry)
 	M.open(nb.root_path .. "/" .. entry.relative_path)
 end
 
+--- Scans all markdown files in the given notebook directory and upserts them
+--- into the database. Returns the count of successfully indexed files.
+---
+--- @param nb BookwyrmBook # The notebook to scan
+--- @return integer # The number of files indexed
+local function sync_all(nb)
+	local count = 0
+
+	for name, ftype in vim.fs.dir(nb.root_path, { recursive = true }) do
+		if ftype == "file" and name:match("%.md$") then
+			local full_path = nb.root_path .. "/" .. name
+
+			local ok, err = pcall(M.sync_file, full_path)
+			if ok then
+				count = count + 1
+			else
+				notify.error("Error syncing " .. name .. ": " .. tostring(err), state.cfg.silent)
+			end
+		end
+	end
+
+	return count
+end
+
 --- Scans the active notebook directory, parses each markdown file with
 --- parser.lua, and upserts all notes into the database.
 function M.sync()
@@ -226,26 +250,82 @@ function M.sync()
 	hooks.fire("pre_sync", { notebook = { id = nb.id, title = nb.title, root_path = nb.root_path } })
 	notify.info("Syncing notebook: " .. nb.title, state.cfg.silent)
 	local start_time = uv.hrtime()
-	local count = 0
 
-	local scanner = vim.fs.dir(nb.root_path, { recursive = true })
-
-	for name, ftype in scanner do
-		if ftype == "file" and name:match("%.md$") then
-			local full_path = nb.root_path .. "/" .. name
-
-			local ok, err = pcall(M.sync_file, full_path)
-			if ok then
-				count = count + 1
-			else
-				notify.error("Error syncing " .. name .. ": " .. tostring(err), state.cfg.silent)
-			end
-		end
-	end
+	local count = sync_all(nb)
 
 	local duration = (uv.hrtime() - start_time) / 1e6
 	notify.info(string.format("Sync complete! Indexed %d files in %.2fms", count, duration))
 	hooks.fire("post_sync", { notebook = { id = nb.id, title = nb.title, root_path = nb.root_path }, count = count, duration = duration })
+end
+
+--- Drops the SQLite database, re-creates it (schema + migrations), and
+--- re-indexes all files in the active notebook from scratch.
+---
+--- Prompts the user for confirmation before proceeding. Exits early if no
+--- active notebook is set.
+function M.reset()
+	state.ensure_active()
+	if not state.nb then
+		notify.error("No active notebook to reset", state.cfg.silent)
+		return
+	end
+
+	local choice = vim.fn.confirm(
+		"Reset bookwyrm database? This cannot be undone.",
+		"&Yes\n&No",
+		2
+	)
+	if choice ~= 1 then
+		return
+	end
+
+	local nb = state.nb
+	local db_path = state.cfg.db_path
+
+	-- Close and discard the existing connection
+	if state.db then
+		pcall(function()
+			state.db:close()
+		end)
+		state.db = nil
+	end
+	state.failed = nil
+
+	-- Delete the DB file from disk
+	local removed = os.remove(db_path)
+	if not removed then
+		notify.warn("Could not remove DB file (may not exist yet): " .. db_path, state.cfg.silent)
+	end
+
+	-- Re-initialize: open a fresh connection which applies schema + migrations
+	local new_db = state.get_conn()
+	if not new_db then
+		notify.error("Failed to re-initialize database after reset", state.cfg.silent)
+		return
+	end
+
+	-- Re-register the active notebook (it was wiped along with the DB)
+	local new_id = new_db.notebooks:insert({
+		root_path = nb.root_path,
+		title = nb.title,
+		priority = nb.priority or 0,
+	})
+	if not new_id then
+		notify.error("Failed to re-register notebook after reset", state.cfg.silent)
+		return
+	end
+
+	state.nb = {
+		id = new_id,
+		root_path = nb.root_path,
+		title = nb.title,
+		priority = nb.priority or 0,
+		is_default = nb.is_default,
+	}
+
+	notify.info("Re-indexing notebook: " .. state.nb.title, state.cfg.silent)
+	local count = sync_all(state.nb)
+	notify.info(string.format("Reset complete! Re-indexed %d notes.", count))
 end
 
 --- Syncs a single file on disk with the database.
