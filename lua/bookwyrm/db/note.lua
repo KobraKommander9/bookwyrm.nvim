@@ -25,6 +25,58 @@ function Note.new(conn, silent)
 	}, Note)
 end
 
+--- Deletes a note and all its associated data (via CASCADE).
+---
+--- @param id integer # The note id to delete
+--- @return boolean # If the operation was successful
+function Note:delete(id)
+	local status, err = pcall(function()
+		--- @diagnostic disable-next-line assign-type-mismatch
+		assert(self.conn:delete("notes", { id = id }), "note delete failed")
+	end)
+
+	if not status then
+		notify.error("failed to delete note: " .. tostring(err), self.silent)
+		return false
+	end
+
+	return true
+end
+
+--- Returns all notes within a notebook that contain a link pointing to the
+--- given relative path (the target note).
+---
+--- @param nb_id         integer # The notebook id to search within
+--- @param relative_path string  # Relative path of the target note (within the notebook)
+--- @return BookwyrmBacklink[]
+function Note:get_backlinks(nb_id, relative_path)
+	local status, result = pcall(function()
+		local rows = self.conn:eval(
+			[[
+      SELECT
+        src.title        AS source_title,
+        src.relative_path AS source_path,
+        l.target_anchor  AS anchor,
+        l.context        AS context
+      FROM links l
+      JOIN notes src ON l.note_id = src.id
+      JOIN notes tgt ON l.target_note_id = tgt.id
+      WHERE src.notebook_id = :nb_id
+        AND tgt.notebook_id = :nb_id
+        AND tgt.relative_path = :relative_path
+    ]],
+			{ nb_id = nb_id, relative_path = relative_path }
+		)
+		return rows or {}
+	end)
+
+	if not status then
+		return {}
+	end
+
+	return result
+end
+
 --- Gets the note by its relative path within a notebook.
 ---
 --- @param nb_id integer # The notebook id
@@ -46,32 +98,6 @@ function Note:get_by_path(nb_id, relative_path)
 	return result
 end
 
---- Deletes a note and all its associated data (via CASCADE).
----
---- @param id integer # The note id to delete
---- @return boolean # If the operation was successful
-function Note:delete(id)
-	local status, err = pcall(function()
-		--- @diagnostic disable-next-line assign-type-mismatch
-		assert(self.conn:delete("notes", { id = id }), "note delete failed")
-	end)
-
-	if not status then
-		notify.error("failed to delete note: " .. tostring(err), self.silent)
-		return false
-	end
-
-	return true
-end
-
---- Lists all notes in a notebook.
----
---- @param nb_id integer # The notebook id
---- @return BookwyrmNote[]
-function Note:list_by_notebook(nb_id)
-	return self:list(nb_id)
-end
-
 --- Lists all notes.
 ---
 --- @param nb_id integer? # The id of the notebook to search in, defaults to all notebooks.
@@ -90,6 +116,33 @@ function Note:list(nb_id)
 	if not status then
 		notify.error(tostring(result), self.silent)
 		return {}
+	end
+
+	return result
+end
+
+--- Resolves a link alias to the matching note within a notebook.
+---
+--- @param nb_id integer # The notebook id to search within
+--- @param alias string  # The alias text (matched case-insensitively)
+--- @return BookwyrmNote?  # The matching note, or nil
+function Note:resolve_by_alias(nb_id, alias)
+	local status, result = pcall(function()
+		local rows = self.conn:eval(
+			[[
+      SELECT n.* FROM aliases a
+      JOIN notes n ON a.note_id = n.id
+      WHERE n.notebook_id = :nb_id AND lower(a.alias) = :alias
+      LIMIT 1
+    ]],
+			{ nb_id = nb_id, alias = alias:lower() }
+		)
+		assert(rows and #rows > 0)
+		return rows[1]
+	end)
+
+	if not status then
+		return nil
 	end
 
 	return result
@@ -193,67 +246,6 @@ function Note:upsert_note(nb_id, note)
 	note.id = result
 
 	return note
-end
-
---- Resolves a link alias to the matching note within a notebook.
----
---- @param nb_id integer # The notebook id to search within
---- @param alias string  # The alias text (matched case-insensitively)
---- @return BookwyrmNote?  # The matching note, or nil
-function Note:resolve_by_alias(nb_id, alias)
-	local status, result = pcall(function()
-		local rows = self.conn:eval(
-			[[
-      SELECT n.* FROM aliases a
-      JOIN notes n ON a.note_id = n.id
-      WHERE n.notebook_id = :nb_id AND lower(a.alias) = :alias
-      LIMIT 1
-    ]],
-			{ nb_id = nb_id, alias = alias:lower() }
-		)
-		assert(rows and #rows > 0)
-		return rows[1]
-	end)
-
-	if not status then
-		return nil
-	end
-
-	return result
-end
-
---- Returns all notes within a notebook that contain a link pointing to the
---- given relative path (the target note).
----
---- @param nb_id         integer # The notebook id to search within
---- @param relative_path string  # Relative path of the target note (within the notebook)
---- @return BookwyrmBacklink[]
-function Note:get_backlinks(nb_id, relative_path)
-	local status, result = pcall(function()
-		local rows = self.conn:eval(
-			[[
-      SELECT
-        src.title        AS source_title,
-        src.relative_path AS source_path,
-        l.target_anchor  AS anchor,
-        l.context        AS context
-      FROM links l
-      JOIN notes src ON l.note_id = src.id
-      JOIN notes tgt ON l.target_note_id = tgt.id
-      WHERE src.notebook_id = :nb_id
-        AND tgt.notebook_id = :nb_id
-        AND tgt.relative_path = :relative_path
-    ]],
-			{ nb_id = nb_id, relative_path = relative_path }
-		)
-		return rows or {}
-	end)
-
-	if not status then
-		return {}
-	end
-
-	return result
 end
 
 --- Searches notes in a notebook by matching text against titles, aliases, and tags.

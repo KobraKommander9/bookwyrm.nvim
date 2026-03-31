@@ -23,6 +23,7 @@ local notify = require("bookwyrm.util.notify")
 --- @field mappings BookwyrmMappings
 --- @field note_capture BookwyrmCaptureNoteOpts
 --- @field silent boolean?
+--- @field template_variables table<string, string|fun(): string>? # Global template variables (strings or zero-arg functions)
 --- @field templates table<string, BookwyrmNoteTemplate>?
 
 --- @class BookwyrmMappings

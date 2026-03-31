@@ -3,6 +3,7 @@ local M = {}
 
 local hooks = require("bookwyrm.api.hooks")
 local notify = require("bookwyrm.util.notify")
+local parser = require("bookwyrm.parser")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
 
@@ -55,56 +56,28 @@ local function parse_template(str, vars)
 	end))
 end
 
---- @class BookwyrmNoteAPI.CaptureNoteOpts
---- @field path string? # Relative path within the notebook root (without .md). Defaults to template path or "{{datetime}}"
---- @field tname string? # The note template name
-
---- Captures the provided lines into a new note using the specified template.
+--- Scans all markdown files in the given notebook directory and upserts them
+--- into the database. Returns the count of successfully indexed files.
 ---
---- @param lines string[] # The lines to capture
---- @param opts BookwyrmNoteAPI.CaptureNoteOpts? # Capture options
---- @return string? # The absolute path of the created note, or nil on failure
-function M.capture_note(lines, opts)
-	opts = opts or {}
+--- @param nb BookwyrmBook # The notebook to scan
+--- @return integer # The number of files indexed
+local function sync_all(nb)
+	local count = 0
 
-	state.ensure_active()
-	if not state.nb then
-		notify.error("No notebook available")
-		return
+	for name, ftype in vim.fs.dir(nb.root_path, { recursive = true }) do
+		if ftype == "file" and name:match("%.md$") then
+			local full_path = nb.root_path .. "/" .. name
+
+			local ok, err = pcall(M.sync_file, full_path)
+			if ok then
+				count = count + 1
+			else
+				notify.error("Error syncing " .. name .. ": " .. tostring(err), state.cfg.silent)
+			end
+		end
 	end
 
-	local template = state.cfg.templates[opts.tname or ""] or {}
-	local vars = get_template_variables(template.variables)
-
-	local path = template.path or opts.path or "{{datetime}}"
-	path = path:gsub("%.md$", "")
-	path = paths.normalize_fname(path)
-
-	local rel_path = paths.normalize_fname(parse_template(path, vars)) .. ".md"
-	local full_path = state.nb.root_path .. "/" .. rel_path
-	paths.ensure_dir(vim.fn.fnamemodify(full_path, ":h"))
-
-	local content = { "" }
-
-	if template.header then
-		table.insert(content, template.header ~= "" and parse_template(template.header, vars) or "---\n")
-	end
-
-	for _, line in ipairs(lines) do
-		local formatted = (template.prefix and parse_template(template.prefix, vars) or "") .. line
-		table.insert(content, formatted)
-	end
-
-	local f = io.open(full_path, "a")
-	if f then
-		f:write(table.concat(content, "\n") .. "\n")
-		f:close()
-		M.sync_file(full_path)
-		hooks.fire("note_captured", { path = full_path })
-		return full_path
-	else
-		notify.error("Failed to open new note: " .. full_path, state.cfg.silent)
-	end
+	return count
 end
 
 --- @class BookwyrmAPI.CaptureOpts: BookwyrmNoteAPI.CaptureNoteOpts, BookwyrmCaptureNoteOpts
@@ -181,277 +154,56 @@ function M.capture(opts)
 	vim.keymap.set("n", state.cfg.mappings.close, discard, { buffer = buf, desc = "Discard Capture" })
 end
 
---- Opens a note file in the current window.
+--- @class BookwyrmNoteAPI.CaptureNoteOpts
+--- @field path string? # Relative path within the notebook root (without .md). Defaults to template path or "{{datetime}}"
+--- @field tname string? # The note template name
+
+--- Captures the provided lines into a new note using the specified template.
 ---
---- @param path string # The absolute path to the note file
-function M.open(path)
-	if not path or path == "" then
-		notify.warn("No path provided", state.cfg.silent)
-		return
-	end
+--- @param lines string[] # The lines to capture
+--- @param opts BookwyrmNoteAPI.CaptureNoteOpts? # Capture options
+--- @return string? # The absolute path of the created note, or nil on failure
+function M.capture_note(lines, opts)
+	opts = opts or {}
 
-	vim.cmd("edit " .. vim.fn.fnameescape(path))
-	hooks.fire("note_opened", { path = path })
-end
-
---- Opens a note entry (as returned by `list_notes()` or `search_notes()`) in
---- the current window.
----
---- Resolves the absolute path by looking up the owning notebook via
---- `entry.notebook_id`, then delegates to `M.open`.
----
---- @param entry BookwyrmNote # A note entry returned by list_notes or search_notes
-function M.open_note(entry)
-	if not entry then
-		notify.warn("No entry provided", state.cfg.silent)
-		return
-	end
-
-	local nb = state.get_conn().notebooks:get_by_id(entry.notebook_id)
-	if not nb then
-		notify.error("Could not find notebook for note", state.cfg.silent)
-		return
-	end
-
-	M.open(nb.root_path .. "/" .. entry.relative_path)
-end
-
---- Scans all markdown files in the given notebook directory and upserts them
---- into the database. Returns the count of successfully indexed files.
----
---- @param nb BookwyrmBook # The notebook to scan
---- @return integer # The number of files indexed
-local function sync_all(nb)
-	local count = 0
-
-	for name, ftype in vim.fs.dir(nb.root_path, { recursive = true }) do
-		if ftype == "file" and name:match("%.md$") then
-			local full_path = nb.root_path .. "/" .. name
-
-			local ok, err = pcall(M.sync_file, full_path)
-			if ok then
-				count = count + 1
-			else
-				notify.error("Error syncing " .. name .. ": " .. tostring(err), state.cfg.silent)
-			end
-		end
-	end
-
-	return count
-end
-
---- Scans the active notebook directory, parses each markdown file with
---- parser.lua, and upserts all notes into the database.
-function M.sync()
 	state.ensure_active()
 	if not state.nb then
-		notify.error("No active notebook to sync", state.cfg.silent)
+		notify.error("No notebook available")
 		return
 	end
 
-	local uv = vim.uv or vim.loop
-	local nb = state.nb
+	local template = state.cfg.templates[opts.tname or ""] or {}
+	local vars = get_template_variables(template.variables)
 
-	hooks.fire("pre_sync", { notebook = { id = nb.id, title = nb.title, root_path = nb.root_path } })
-	notify.info("Syncing notebook: " .. nb.title, state.cfg.silent)
-	local start_time = uv.hrtime()
+	local path = template.path or opts.path or "{{datetime}}"
+	path = path:gsub("%.md$", "")
+	path = paths.normalize_fname(path)
 
-	local count = sync_all(nb)
+	local rel_path = paths.normalize_fname(parse_template(path, vars)) .. ".md"
+	local full_path = state.nb.root_path .. "/" .. rel_path
+	paths.ensure_dir(vim.fn.fnamemodify(full_path, ":h"))
 
-	local duration = (uv.hrtime() - start_time) / 1e6
-	notify.info(string.format("Sync complete! Indexed %d files in %.2fms", count, duration))
-	hooks.fire("post_sync", { notebook = { id = nb.id, title = nb.title, root_path = nb.root_path }, count = count, duration = duration })
-end
+	local content = { "" }
 
---- Drops the SQLite database, re-creates it (schema + migrations), and
---- re-indexes all files in the active notebook from scratch.
----
---- Prompts the user for confirmation before proceeding. Exits early if no
---- active notebook is set.
-function M.reset()
-	state.ensure_active()
-	if not state.nb then
-		notify.error("No active notebook to reset", state.cfg.silent)
-		return
+	if template.header then
+		table.insert(content, template.header ~= "" and parse_template(template.header, vars) or "---\n")
 	end
 
-	local choice = vim.fn.confirm(
-		"Reset bookwyrm database? This cannot be undone.",
-		"&Yes\n&No",
-		2
-	)
-	if choice ~= 1 then
-		return
+	for _, line in ipairs(lines) do
+		local formatted = (template.prefix and parse_template(template.prefix, vars) or "") .. line
+		table.insert(content, formatted)
 	end
 
-	local nb = state.nb
-	local db_path = state.cfg.db_path
-
-	-- Close and discard the existing connection
-	if state.db then
-		pcall(function()
-			state.db:close()
-		end)
-		state.db = nil
+	local f = io.open(full_path, "a")
+	if f then
+		f:write(table.concat(content, "\n") .. "\n")
+		f:close()
+		M.sync_file(full_path)
+		hooks.fire("note_captured", { path = full_path })
+		return full_path
+	else
+		notify.error("Failed to open new note: " .. full_path, state.cfg.silent)
 	end
-	state.failed = nil
-
-	-- Delete the DB file from disk
-	local removed = os.remove(db_path)
-	if not removed then
-		notify.warn("Could not remove DB file (may not exist yet): " .. db_path, state.cfg.silent)
-	end
-
-	-- Re-initialize: open a fresh connection which applies schema + migrations
-	local new_db = state.get_conn()
-	if not new_db then
-		notify.error("Failed to re-initialize database after reset", state.cfg.silent)
-		return
-	end
-
-	-- Re-register the active notebook (it was wiped along with the DB)
-	local new_id = new_db.notebooks:insert({
-		root_path = nb.root_path,
-		title = nb.title,
-		priority = nb.priority or 0,
-	})
-	if not new_id then
-		notify.error("Failed to re-register notebook after reset", state.cfg.silent)
-		return
-	end
-
-	state.nb = {
-		id = new_id,
-		root_path = nb.root_path,
-		title = nb.title,
-		priority = nb.priority or 0,
-		is_default = nb.is_default,
-	}
-
-	notify.info("Re-indexing notebook: " .. state.nb.title, state.cfg.silent)
-	local count = sync_all(state.nb)
-	notify.info(string.format("Reset complete! Re-indexed %d notes.", count))
-end
-
---- Syncs a single file on disk with the database.
----
---- @param path string? # The absolute path to the file; defaults to the current buffer's file.
-function M.sync_file(path)
-	path = path or vim.api.nvim_buf_get_name(0)
-	if not path or path == "" then
-		return
-	end
-	path = paths.normalize(path)
-
-	local ext = vim.fn.fnamemodify(path, ":e")
-	if ext ~= "md" then
-		return
-	end
-
-	local nb = state.get_conn().notebooks:get_by_path(path)
-	if not nb then
-		return
-	end
-
-	local root = nb.root_path .. "/"
-	local rel_path = path:sub(#root + 1)
-
-	local lines = vim.fn.readfile(path)
-	local note = parser.parse(lines)
-	note.relative_path = rel_path
-	note.title = vim.fn.fnamemodify(path, ":t:r")
-	note.fsize = vim.fn.getfsize(path)
-	note.mtime = vim.fn.getftime(path)
-
-	state.get_conn().notes:upsert_note(nb.id, note)
-end
-
---- Syncs the current buffer content with the database.
----
---- @param bufnr integer? # The buffer number; defaults to the current buffer (0).
-function M.sync_buffer(bufnr)
-	bufnr = bufnr or 0
-	if vim.bo[bufnr].filetype ~= "markdown" then
-		return
-	end
-
-	local path = vim.api.nvim_buf_get_name(bufnr)
-	if not path or path == "" then
-		return
-	end
-
-	local nb = state.get_conn().notebooks:get_by_path(path)
-	if not nb then
-		return
-	end
-
-	local root = nb.root_path .. "/"
-	local rel_path = path:sub(#root + 1)
-
-	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-	local note = parser.parse(lines)
-	note.relative_path = rel_path
-	note.title = vim.fn.fnamemodify(path, ":t:r")
-	note.fsize = vim.fn.getfsize(path)
-	note.mtime = vim.fn.getftime(path)
-
-	state.get_conn().notes:upsert_note(nb.id, note)
-end
-
---- @class BookwyrmListNotesOpts
---- @field nb_id integer? # The id of the notebook to list in, defaults to the active notebook.
-
---- Lists all notes in the active (or specified) notebook.
----
---- Returns an empty list when no active notebook is set. The optional `opts`
---- table is reserved for future filtering extensions.
----
---- @param opts BookwyrmListNotesOpts?
---- @return BookwyrmNote[]
-function M.list_notes(opts)
-	state.ensure_active()
-	if not state.nb then
-		return {}
-	end
-
-	local nb_id = (opts and opts.nb_id) or state.get_active_id()
-	return state.get_conn().notes:list(nb_id)
-end
-
---- @class BookwyrmSearchNotesQuery
---- @field text string # The search text to match against title, aliases, and tags
-
---- @class BookwyrmSearchNotesOpts
---- @field nb_id integer? # The id of the notebook to search in, defaults to the active notebook.
-
---- Searches notes in the active (or specified) notebook.
----
---- Matches `query.text` against note titles, aliases, and tags using
---- case-insensitive substring matching.  Fuzzy refinement is left to the
---- caller (e.g. a picker).
----
---- Each entry has the same fields as `list_notes()`, including `tags` as
---- `BookwyrmTag[]` and `aliases` as `BookwyrmAlias[]` object arrays.
----
---- Returns an empty list when no active notebook is set.  Returns all notes
---- when `query.text` is nil or empty (equivalent to `list_notes()`).
----
---- @param query BookwyrmSearchNotesQuery # The search query
---- @param opts BookwyrmSearchNotesOpts? # Search options
---- @return BookwyrmNote[]
-function M.search_notes(query, opts)
-	state.ensure_active()
-	if not state.nb then
-		return {}
-	end
-
-	local nb_id = (opts and opts.nb_id) or state.get_active_id()
-
-	if not query or not query.text or query.text == "" then
-		return state.get_conn().notes:list(nb_id)
-	end
-
-	return state.get_conn().notes:search(nb_id, query.text)
 end
 
 --- Returns all notes that contain a link pointing to the given file.
@@ -473,11 +225,12 @@ function M.get_backlinks(file_path)
 	end
 
 	state.ensure_active()
-	if not state.nb then
+
+	local nb = state.nb
+	if not nb then
 		return {}
 	end
 
-	local nb = state.nb
 	local root = nb.root_path .. "/"
 
 	-- Normalise to an absolute path then derive the relative path.
@@ -531,6 +284,259 @@ function M.insert_link(entry, bufnr, cursor)
 	local link = "[[" .. entry.title .. "]]"
 
 	vim.api.nvim_buf_set_text(bufnr, row, col, row, col, { link })
+end
+
+--- @class BookwyrmListNotesOpts
+--- @field nb_id integer? # The id of the notebook to list in, defaults to the active notebook.
+
+--- Lists all notes in the active (or specified) notebook.
+---
+--- Returns an empty list when no active notebook is set. The optional `opts`
+--- table is reserved for future filtering extensions.
+---
+--- @param opts BookwyrmListNotesOpts?
+--- @return BookwyrmNote[]
+function M.list_notes(opts)
+	state.ensure_active()
+	if not state.nb then
+		return {}
+	end
+
+	local nb_id = (opts and opts.nb_id) or state.get_active_id()
+	return state.get_conn().notes:list(nb_id)
+end
+
+--- Opens a note file in the current window.
+---
+--- @param path string # The absolute path to the note file
+function M.open(path)
+	if not path or path == "" then
+		notify.warn("No path provided", state.cfg.silent)
+		return
+	end
+
+	vim.cmd("edit " .. vim.fn.fnameescape(path))
+	hooks.fire("note_opened", { path = path })
+end
+
+--- Opens a note entry (as returned by `list_notes()` or `search_notes()`) in
+--- the current window.
+---
+--- Resolves the absolute path by looking up the owning notebook via
+--- `entry.notebook_id`, then delegates to `M.open`.
+---
+--- @param entry BookwyrmNote # A note entry returned by list_notes or search_notes
+function M.open_note(entry)
+	if not entry then
+		notify.warn("No entry provided", state.cfg.silent)
+		return
+	end
+
+	local nb = state.get_conn().notebooks:get_by_id(entry.notebook_id)
+	if not nb then
+		notify.error("Could not find notebook for note", state.cfg.silent)
+		return
+	end
+
+	M.open(nb.root_path .. "/" .. entry.relative_path)
+end
+
+--- Drops the SQLite database, re-creates it (schema + migrations), and
+--- re-indexes all files in the active notebook from scratch.
+---
+--- Prompts the user for confirmation before proceeding. Exits early if no
+--- active notebook is set.
+function M.reset()
+	state.ensure_active()
+
+	local nb = state.nb
+	if not nb then
+		notify.error("No active notebook to reset", state.cfg.silent)
+		return
+	end
+
+	local choice = vim.fn.confirm("Reset bookwyrm database? This cannot be undone.", "&Yes\n&No", 2)
+	if choice ~= 1 then
+		return
+	end
+
+	local db_path = state.cfg.db_path
+
+	-- Close and discard the existing connection
+	if state.db then
+		pcall(function()
+			state.db:close()
+		end)
+		state.db = nil
+	end
+	state.failed = nil
+
+	-- Delete the DB file from disk
+	local removed = os.remove(db_path)
+	if not removed then
+		notify.warn("Could not remove DB file (may not exist yet): " .. db_path, state.cfg.silent)
+	end
+
+	-- Re-initialize: open a fresh connection which applies schema + migrations
+	local new_db = state.get_conn()
+	if not new_db then
+		notify.error("Failed to re-initialize database after reset", state.cfg.silent)
+		return
+	end
+
+	-- Re-register the active notebook (it was wiped along with the DB)
+	local new_id = new_db.notebooks:insert({
+		root_path = nb.root_path,
+		title = nb.title,
+		priority = nb.priority or 0,
+	})
+	if not new_id then
+		notify.error("Failed to re-register notebook after reset", state.cfg.silent)
+		return
+	end
+
+	state.nb = {
+		id = new_id,
+		root_path = nb.root_path,
+		title = nb.title,
+		priority = nb.priority or 0,
+		is_default = nb.is_default,
+	}
+
+	notify.info("Re-indexing notebook: " .. state.nb.title, state.cfg.silent)
+	local count = sync_all(state.nb)
+	notify.info(string.format("Reset complete! Re-indexed %d notes.", count))
+end
+
+--- @class BookwyrmSearchNotesQuery
+--- @field text string # The search text to match against title, aliases, and tags
+
+--- @class BookwyrmSearchNotesOpts
+--- @field nb_id integer? # The id of the notebook to search in, defaults to the active notebook.
+
+--- Searches notes in the active (or specified) notebook.
+---
+--- Matches `query.text` against note titles, aliases, and tags using
+--- case-insensitive substring matching.  Fuzzy refinement is left to the
+--- caller (e.g. a picker).
+---
+--- Each entry has the same fields as `list_notes()`, including `tags` as
+--- `BookwyrmTag[]` and `aliases` as `BookwyrmAlias[]` object arrays.
+---
+--- Returns an empty list when no active notebook is set.  Returns all notes
+--- when `query.text` is nil or empty (equivalent to `list_notes()`).
+---
+--- @param query BookwyrmSearchNotesQuery # The search query
+--- @param opts BookwyrmSearchNotesOpts? # Search options
+--- @return BookwyrmNote[]
+function M.search_notes(query, opts)
+	state.ensure_active()
+	if not state.nb then
+		return {}
+	end
+
+	local nb_id = (opts and opts.nb_id) or state.get_active_id()
+	if not nb_id then
+		return {}
+	end
+
+	if not query or not query.text or query.text == "" then
+		return state.get_conn().notes:list(nb_id)
+	end
+
+	return state.get_conn().notes:search(nb_id, query.text)
+end
+
+--- Scans the active notebook directory, parses each markdown file with
+--- parser.lua, and upserts all notes into the database.
+function M.sync()
+	state.ensure_active()
+
+	local nb = state.nb
+	if not nb then
+		notify.error("No active notebook to sync", state.cfg.silent)
+		return
+	end
+
+	local uv = vim.uv or vim.loop
+
+	hooks.fire("pre_sync", { notebook = { id = nb.id, title = nb.title, root_path = nb.root_path } })
+	notify.info("Syncing notebook: " .. nb.title, state.cfg.silent)
+	local start_time = uv.hrtime()
+
+	local count = sync_all(nb)
+
+	local duration = (uv.hrtime() - start_time) / 1e6
+	notify.info(string.format("Sync complete! Indexed %d files in %.2fms", count, duration))
+	hooks.fire(
+		"post_sync",
+		{ notebook = { id = nb.id, title = nb.title, root_path = nb.root_path }, count = count, duration = duration }
+	)
+end
+
+--- Syncs the current buffer content with the database.
+---
+--- @param bufnr integer? # The buffer number; defaults to the current buffer (0).
+function M.sync_buffer(bufnr)
+	bufnr = bufnr or 0
+	if vim.bo[bufnr].filetype ~= "markdown" then
+		return
+	end
+
+	local path = vim.api.nvim_buf_get_name(bufnr)
+	if not path or path == "" then
+		return
+	end
+
+	local nb = state.get_conn().notebooks:get_by_path(path)
+	if not nb then
+		return
+	end
+
+	local root = nb.root_path .. "/"
+	local rel_path = path:sub(#root + 1)
+
+	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+	local note = parser.parse(lines) --[[@as BookwyrmNote]]
+	note.relative_path = rel_path
+	note.title = vim.fn.fnamemodify(path, ":t:r")
+	note.fsize = vim.fn.getfsize(path)
+	note.mtime = vim.fn.getftime(path)
+
+	state.get_conn().notes:upsert_note(nb.id, note)
+end
+
+--- Syncs a single file on disk with the database.
+---
+--- @param path string? # The absolute path to the file; defaults to the current buffer's file.
+function M.sync_file(path)
+	path = path or vim.api.nvim_buf_get_name(0)
+	if not path or path == "" then
+		return
+	end
+	path = paths.normalize(path)
+
+	local ext = vim.fn.fnamemodify(path, ":e")
+	if ext ~= "md" then
+		return
+	end
+
+	local nb = state.get_conn().notebooks:get_by_path(path)
+	if not nb then
+		return
+	end
+
+	local root = nb.root_path .. "/"
+	local rel_path = path:sub(#root + 1)
+
+	local lines = vim.fn.readfile(path)
+	local note = parser.parse(lines) --[[@as BookwyrmNote]]
+	note.relative_path = rel_path
+	note.title = vim.fn.fnamemodify(path, ":t:r")
+	note.fsize = vim.fn.getfsize(path)
+	note.mtime = vim.fn.getftime(path)
+
+	state.get_conn().notes:upsert_note(nb.id, note)
 end
 
 return M
