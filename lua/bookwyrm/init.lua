@@ -7,6 +7,9 @@ local state = require("bookwyrm.state")
 --- @class BookwyrmAPI
 M.api = require("bookwyrm.api")
 
+--- @class BookwyrmPickers
+M.pickers = require("bookwyrm.pickers")
+
 --- @class BookwyrmOpts
 --- @field data_path string? # The base path for the bookwyrm data
 --- @field disable_hooks boolean? # If true will disable hook registration

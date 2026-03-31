@@ -5,6 +5,23 @@ local notify = require("bookwyrm.util.notify")
 local paths = require("bookwyrm.util.paths")
 local state = require("bookwyrm.state")
 
+--- Removes the active notebook record from the DB.
+---
+--- @param id integer? # The id of the notebook to delete (defaults to active)
+function M.delete_notebook(id)
+	local target_id = id or state.get_active_id()
+	if not target_id then
+		notify.warn("no active notebook to delete", state.cfg.silent)
+		return
+	end
+
+	if state.get_active_id() == target_id then
+		state.nb = nil
+	end
+
+	state.get_conn().notebooks:delete(target_id)
+end
+
 --- Returns the active notebook, if any.
 ---
 --- @param skip_db boolean? # If true, won't check for default notebook in db if no active is set
@@ -25,6 +42,34 @@ function M.get_active_notebook(skip_db)
 	state.set_active(result)
 
 	return state.nb
+end
+
+--- Returns the notebook whose root path contains the given path.
+---
+--- @param path string? # Absolute path to check; defaults to current buffer's file
+--- @return BookwyrmBook?
+function M.get_notebook_by_path(path)
+	path = path or vim.api.nvim_buf_get_name(0)
+	if not path or path == "" then
+		return nil
+	end
+
+	local status, result = pcall(function()
+		return state.get_conn().notebooks:get_by_path(path)
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
+--- Returns all registered notebooks.
+---
+--- @return BookwyrmBook[]
+function M.list_notebooks()
+	return state.get_conn().notebooks:list()
 end
 
 --- @class BookwyrmNotebookAPI.RegisterOpts
@@ -61,6 +106,7 @@ function M.register_notebook(opts)
 
 	nb.id = id
 	state.set_active(nb)
+	notify.info("Active: " .. nb.title, state.cfg.silent)
 
 	return nb
 end
@@ -83,52 +129,6 @@ function M.rename_notebook(title, id)
 	end
 end
 
---- Removes the active notebook record from the DB.
----
---- @param id integer? # The id of the notebook to delete (defaults to active)
-function M.delete_notebook(id)
-	local target_id = id or state.get_active_id()
-	if not target_id then
-		notify.warn("no active notebook to delete", state.cfg.silent)
-		return
-	end
-
-	if state.get_active_id() == target_id then
-		state.nb = nil
-	end
-
-	state.get_conn().notebooks:delete(target_id)
-end
-
---- Returns the notebook whose root path contains the given path.
----
---- @param path string? # Absolute path to check; defaults to current buffer's file
---- @return BookwyrmBook?
-function M.get_notebook_by_path(path)
-	path = path or vim.api.nvim_buf_get_name(0)
-	if not path or path == "" then
-		return nil
-	end
-
-	local status, result = pcall(function()
-		return state.get_conn().notebooks:get_by_path(path)
-	end)
-
-	if not status then
-		return nil
-	end
-
-	return result
-end
-
-
---- Returns all registered notebooks.
----
---- @return BookwyrmBook[]
-function M.list_notebooks()
-	return state.get_conn().notebooks:list()
-end
-
 --- Updates the active notebook in state.
 ---
 --- Accepts either a `BookwyrmBook` entry table (as returned by `list_notebooks()`)
@@ -138,27 +138,42 @@ end
 --- @param entry BookwyrmBook|integer # A notebook entry table or integer id
 --- @return BookwyrmBook? # The newly active notebook
 function M.set_active_notebook(entry)
+	--- @type BookwyrmBook?
+	local nb
+
 	if type(entry) == "number" then
-		local id = entry
-		entry = state.get_conn().notebooks:get_by_id(id)
-		if not entry then
-			notify.error("notebook not found: " .. tostring(id), state.cfg.silent)
+		nb = state.get_conn().notebooks:get_by_id(entry)
+		if not nb then
+			notify.error("notebook not found: " .. tostring(entry), state.cfg.silent)
 			return nil
 		end
 	end
 
-	if not entry or not entry.id then
+	if not nb or not nb.id then
 		notify.error("invalid notebook entry", state.cfg.silent)
 		return nil
 	end
 
-	if state.nb and state.nb.id == entry.id then
+	if state.nb and state.nb.id == nb.id then
 		return state.nb
 	end
 
-	state.set_active(entry)
+	state.set_active(nb)
+	notify.info("Active: " .. nb.title, state.cfg.silent)
 
 	return state.nb
+end
+
+--- Sets the active default notebook.
+---
+--- @param id integer? # The id of the notebook to set as default, or the active notebook if empty.
+function M.set_default_notebook(id)
+	id = id or state.get_active_id()
+	if not id then
+		return
+	end
+
+	state.get_conn().notebooks:set_default(id)
 end
 
 return M
