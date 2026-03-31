@@ -1,3 +1,5 @@
+--- @class Bookwyrm.Mini
+---
 --- mini.pick integration for bookwyrm.nvim
 ---
 --- Provides pre-baked pickers for notes, notebooks, and backlinks using
@@ -98,12 +100,20 @@ function M.find_notes(opts)
 	})
 end
 
+--- @class Bookwyrm.MiniFindNotebooksOpts
+--- @field action? fun(nb: BookwyrmBook) The action to perform when selecting
+---   a notebook. Defaults to switching to that notebook.
+
 --- Opens a mini.pick session for switching the active notebook.
 ---
 --- Display text shows the notebook name followed by its root path.
 ---
 --- Selecting a notebook sets it as the active notebook.
-function M.find_notebooks()
+---
+--- @param opts? Bookwyrm.MiniFindNotebooksOpts
+function M.find_notebooks(opts)
+	opts = opts or {}
+
 	if not has_mini_pick() then
 		return
 	end
@@ -121,13 +131,15 @@ function M.find_notebooks()
 		})
 	end
 
+	opts.action = opts.action or api.set_active_notebook
+
 	MiniPick.start({
 		source = {
 			items = items,
 			name = "Bookwyrm Notebooks",
 			choose = function(item)
 				if item then
-					api.set_active_notebook(item.notebook)
+					opts.action(item.notebook)
 				end
 			end,
 		},

@@ -16,7 +16,7 @@ end, { desc = "Drop and re-scan the active notebook database" })
 -------------------------------------------------------------------------------
 
 vim.api.nvim_create_user_command("BookwyrmNotebookDelete", function()
-	require("bookwyrm").api.unregister_notebook()
+	require("bookwyrm").api.delete_notebook()
 end, { desc = "Delete active Bookwyrm notebook" })
 
 vim.api.nvim_create_user_command("BookwyrmNotebookRegister", function()
