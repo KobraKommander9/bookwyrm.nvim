@@ -64,6 +64,7 @@ function M.find_notes(opts)
 		if #aliases > 0 then
 			display = display .. "  [" .. table.concat(aliases, ", ") .. "]"
 		end
+
 		if #tags > 0 then
 			display = display .. "  #" .. table.concat(tags, " #")
 		end
@@ -77,6 +78,7 @@ function M.find_notes(opts)
 			func = function()
 				local matches = MiniPick.get_picker_matches()
 				local item = matches and matches.current
+
 				if item then
 					MiniPick.stop()
 					-- insert_link expects cursor as { row (1-based), col (1-based) }
@@ -92,7 +94,7 @@ function M.find_notes(opts)
 			name = "Bookwyrm Notes",
 			choose = function(item)
 				if item then
-					api.open_note(item.note)
+					api.open(item.note, { float = true })
 				end
 			end,
 		},
@@ -165,13 +167,16 @@ function M.find_backlinks()
 
 	local items = {}
 	for _, link in ipairs(backlinks) do
-		local display = link.source_title
-		if link.anchor and link.anchor ~= "" then
-			display = display .. "  ^" .. link.anchor
+		local display = link.note
+
+		if link.target_anchor and link.target_anchor ~= "" then
+			display = display .. "  ^" .. link.target_anchor
 		end
+
 		if link.context and link.context ~= "" then
 			display = display .. "  — " .. link.context
 		end
+
 		table.insert(items, { text = display, link = link })
 	end
 
@@ -181,7 +186,7 @@ function M.find_backlinks()
 			name = "Bookwyrm Backlinks",
 			choose = function(item)
 				if item then
-					api.open(item.link.source_path)
+					api.open(item.link.source_path, { float = true })
 				end
 			end,
 		},

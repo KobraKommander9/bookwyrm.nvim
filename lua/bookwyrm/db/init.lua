@@ -69,6 +69,7 @@ local MIGRATIONS = {
         context TEXT NOT NULL,
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         note_id INTEGER NOT NULL,
+        notebook_id INTEGER NOT NULL,
         target_note TEXT,
         target_note_id INTEGER,
         target_anchor TEXT,
@@ -79,6 +80,7 @@ local MIGRATIONS = {
         end_char INTEGER NOT NULL,
 
         FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+        FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE,
         FOREIGN KEY (target_note_id) REFERENCES notes(id) ON DELETE SET NULL
       );
     ]],

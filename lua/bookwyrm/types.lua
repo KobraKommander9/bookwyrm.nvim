@@ -24,7 +24,9 @@
 --- @field context string # Link context
 --- @field id integer # The link id
 --- @field loc Range # Link location
+--- @field note string # The title of owning note
 --- @field note_id integer # ID of owning note
+--- @field notebook_id integer # ID of owning notebook
 --- @field target_anchor string? # Target anchor id, if any
 --- @field target_note string? # Title of target note
 --- @field target_note_id integer? # The id of the target note
@@ -53,12 +55,6 @@
 --- @field links BookwyrmLink[]
 --- @field tags BookwyrmTag[]
 --- @field tasks BookwyrmTask[]
-
---- @class BookwyrmBacklink
---- @field source_title string  # Title of the linking note
---- @field source_path  string  # Absolute path of the linking note
---- @field anchor       string? # Target anchor id, if any
---- @field context      string? # Surrounding text from the link row
 
 --- @class BookwyrmBook
 --- @field id integer # Noteboook ID

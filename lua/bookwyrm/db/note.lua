@@ -43,31 +43,48 @@ function Note:delete(id)
 	return true
 end
 
+--- Returns the note for the given id.
+---
+--- @param id integer # the note id
+--- @return BookwyrmNote?
+function Note:get(id)
+	local status, result = pcall(function()
+		local notes = self.conn:select("notes", {
+			where = { note_id = id },
+			limit = 1,
+		})
+		assert(notes and #notes > 0, "note not found")
+
+		return notes[1]
+	end)
+
+	if not status then
+		return nil
+	end
+
+	return result
+end
+
 --- Returns all notes within a notebook that contain a link pointing to the
 --- given relative path (the target note).
 ---
 --- @param nb_id         integer # The notebook id to search within
 --- @param relative_path string  # Relative path of the target note (within the notebook)
---- @return BookwyrmBacklink[]
+--- @return BookwyrmLink[]
 function Note:get_backlinks(nb_id, relative_path)
 	local status, result = pcall(function()
-		local rows = self.conn:eval(
-			[[
-      SELECT
-        src.title        AS source_title,
-        src.relative_path AS source_path,
-        l.target_anchor  AS anchor,
-        l.context        AS context
-      FROM links l
-      JOIN notes src ON l.note_id = src.id
-      JOIN notes tgt ON l.target_note_id = tgt.id
-      WHERE src.notebook_id = :nb_id
-        AND tgt.notebook_id = :nb_id
-        AND tgt.relative_path = :relative_path
-    ]],
-			{ nb_id = nb_id, relative_path = relative_path }
-		)
-		return rows or {}
+		local notes = self.conn:select("notes", {
+			where = { notebook_id = nb_id, relative_path = relative_path },
+			limit = 1,
+		})
+		assert(notes and #notes > 0, "no notes found")
+
+		local links = self.conn:select("links", {
+			where = { notebook_id = nb_id, target_note_id = notes[1].id },
+		})
+		assert(links, "could not list links")
+
+		return links
 	end)
 
 	if not status then
@@ -208,7 +225,9 @@ function Note:upsert_note(nb_id, note)
 
 		Q.batch_insert(self.conn, "links", note.links, function(l)
 			return {
+				note = note.title,
 				note_id = note_id,
+				notebook_id = nb_id,
 				target_note = l.target_note,
 				target_anchor = l.target_anchor,
 				context = l.context,
@@ -246,79 +265,6 @@ function Note:upsert_note(nb_id, note)
 	note.id = result
 
 	return note
-end
-
---- Searches notes in a notebook by matching text against titles, aliases, and tags.
----
---- Returns matching notes with `tags` as `BookwyrmTag[]` and `aliases` as
---- `BookwyrmAlias[]` arrays, matching the full shape of `BookwyrmNote`.
----
---- @param nb_id integer # The notebook id to search within
---- @param text  string  # Case-insensitive substring to match
---- @return BookwyrmNote[]
-function Note:search(nb_id, text)
-	local status, result = pcall(function()
-		local pattern = "%" .. text:lower() .. "%"
-		local rows = self.conn:eval(
-			[[
-      SELECT DISTINCT n.id, n.notebook_id, n.relative_path, n.title, n.fsize, n.mtime
-      FROM notes n
-      LEFT JOIN tags    t ON t.note_id = n.id
-      LEFT JOIN aliases a ON a.note_id = n.id
-      WHERE n.notebook_id = :nb_id
-        AND (
-          lower(n.title)    LIKE :pattern
-          OR lower(t.tag)   LIKE :pattern
-          OR lower(a.alias) LIKE :pattern
-        )
-      GROUP BY n.id
-    ]],
-			{ nb_id = nb_id, pattern = pattern }
-		)
-		if not rows then
-			return {}
-		end
-
-		for _, note in ipairs(rows) do
-			note.tags = self.conn:select("tags", { where = { note_id = note.id } }) or {}
-			note.aliases = self.conn:select("aliases", { where = { note_id = note.id } }) or {}
-		end
-
-		return rows
-	end)
-
-	if not status then
-		notify.error("failed to search notes: " .. tostring(result), self.silent)
-		return {}
-	end
-
-	return result
-end
-
---- Resolves a note title to the matching note within a notebook.
----
---- @param nb_id integer # The notebook id to search within
---- @param title string  # The title (matched case-insensitively)
---- @return BookwyrmNote?  # The matching note, or nil
-function Note:resolve_by_title(nb_id, title)
-	local status, result = pcall(function()
-		local rows = self.conn:eval(
-			[[
-      SELECT * FROM notes
-      WHERE notebook_id = :nb_id AND lower(title) = :title
-      LIMIT 1
-    ]],
-			{ nb_id = nb_id, title = title:lower() }
-		)
-		assert(rows and #rows > 0)
-		return rows[1]
-	end)
-
-	if not status then
-		return nil
-	end
-
-	return result
 end
 
 return Note

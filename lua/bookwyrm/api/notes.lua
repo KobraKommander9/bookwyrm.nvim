@@ -148,9 +148,7 @@ function M.capture(opts)
 		end
 	end
 
-	vim.keymap.set("n", state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
-	vim.keymap.set("i", state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
-
+	vim.keymap.set({ "n", "i" }, state.cfg.mappings.save, submit, { buffer = buf, desc = "Save Capture" })
 	vim.keymap.set("n", state.cfg.mappings.close, discard, { buffer = buf, desc = "Discard Capture" })
 end
 
@@ -206,6 +204,14 @@ function M.capture_note(lines, opts)
 	end
 end
 
+--- Returns the note for the given id.
+---
+--- @param id integer # The note id.
+--- @return BookwyrmNote?
+function M.get_note(id)
+	return state.get_conn().notes:get(id)
+end
+
 --- Returns all notes that contain a link pointing to the given file.
 ---
 --- Each entry contains:
@@ -218,7 +224,7 @@ end
 --- is set.
 ---
 --- @param file_path string # Absolute (or notebook-relative) path to the target note
---- @return BookwyrmBacklink[]
+--- @return BookwyrmLink[]
 function M.get_backlinks(file_path)
 	if not file_path or file_path == "" then
 		return {}
@@ -252,25 +258,12 @@ function M.get_backlinks(file_path)
 		return {}
 	end
 
-	local rows = db.notes:get_backlinks(nb.id, relative_path)
-
-	-- Convert relative source_path to absolute path for callers.
-	local results = {}
-	for _, row in ipairs(rows) do
-		table.insert(results, {
-			source_title = row.source_title,
-			source_path = root .. row.source_path,
-			anchor = row.anchor,
-			context = row.context,
-		})
-	end
-
-	return results
+	return db.notes:get_backlinks(nb.id, relative_path)
 end
 
 --- Inserts a `[[note title]]` wikilink at the given cursor position in the given buffer.
 ---
---- @param entry BookwyrmNote # A note entry as returned by `list_notes()` or `search_notes()`
+--- @param entry BookwyrmNote # A note entry as returned by `list_notes()`.
 --- @param bufnr integer # The target buffer number
 --- @param cursor integer[] # The cursor position as `{ row, col }` (1-indexed row, 1-indexed col)
 function M.insert_link(entry, bufnr, cursor)
@@ -306,39 +299,79 @@ function M.list_notes(opts)
 	return state.get_conn().notes:list(nb_id)
 end
 
+--- @class BookwyrmNoteAPI.OpenOpts: BookwyrmCaptureNoteOpts
+--- @field float? boolean # If the note should be opened as a float
+
 --- Opens a note file in the current window.
 ---
---- @param path string # The absolute path to the note file
-function M.open(path)
-	if not path or path == "" then
-		notify.warn("No path provided", state.cfg.silent)
-		return
-	end
+--- @param note BookwyrmNote # The note to open
+--- @param opts? BookwyrmNoteAPI.OpenOpts # If the note should be opened in the floating window
+function M.open(note, opts)
+	opts = vim.tbl_deep_extend("force", state.cfg.note_capture, opts or {}) --[[@as BookwyrmNoteAPI.OpenOpts]]
+	opts.buffer = opts.buffer or {}
+	opts.window = opts.window or {}
 
-	vim.cmd("edit " .. vim.fn.fnameescape(path))
-	hooks.fire("note_opened", { path = path })
-end
-
---- Opens a note entry (as returned by `list_notes()` or `search_notes()`) in
---- the current window.
----
---- Resolves the absolute path by looking up the owning notebook via
---- `entry.notebook_id`, then delegates to `M.open`.
----
---- @param entry BookwyrmNote # A note entry returned by list_notes or search_notes
-function M.open_note(entry)
-	if not entry then
-		notify.warn("No entry provided", state.cfg.silent)
-		return
-	end
-
-	local nb = state.get_conn().notebooks:get_by_id(entry.notebook_id)
+	local nb = state.get_conn().notebooks:get_by_id(note.notebook_id)
 	if not nb then
 		notify.error("Could not find notebook for note", state.cfg.silent)
 		return
 	end
 
-	M.open(nb.root_path .. "/" .. entry.relative_path)
+	local path = nb.root_path .. "/" .. note.relative_path
+	path = paths.normalize(path)
+
+	if not opts.float then
+		vim.cmd("edit " .. vim.fn.fnameescape(path))
+		hooks.fire("note_opened", { path = path })
+		return
+	end
+
+	local buf = vim.fn.bufnr(path)
+	local is_new = buf == -1
+
+	if is_new then
+		buf = vim.api.nvim_create_buf(false, false)
+		vim.api.nvim_buf_set_name(buf, path)
+	end
+
+	local width = math.ceil(vim.o.columns * 0.4)
+	local height = math.ceil(vim.o.lines * 0.3)
+	local win = vim.api.nvim_open_win(buf, true, {
+		relative = "editor",
+		width = width,
+		height = height,
+		row = 1,
+		col = vim.o.columns - width - 2,
+		style = "minimal",
+		border = "rounded",
+		title = note.title,
+		title_pos = "center",
+	})
+
+	if is_new or vim.api.nvim_buf_line_count(buf) <= 1 then
+		vim.api.nvim_buf_call(buf, function()
+			vim.cmd("keepalt lockmarks silent 0read " .. vim.fn.fnameescape(path))
+			vim.cmd("silent! $delete _")
+			vim.cmd("filetype detect")
+		end)
+	end
+
+	for k, v in pairs(opts.buffer) do
+		vim.api.nvim_set_option_value(k, v, { buf = buf })
+	end
+
+	for k, v in pairs(opts.window) do
+		vim.api.nvim_set_option_value(k, v, { win = win })
+	end
+
+	vim.api.nvim_set_option_value("modified", false, { buf = buf })
+	vim.api.nvim_set_current_win(win)
+
+	local line_count = vim.api.nvim_buf_line_count(buf)
+	vim.api.nvim_win_set_cursor(win, { line_count, 0 })
+
+	vim.keymap.set({ "n", "i" }, state.cfg.mappings.save, "<cmd>w<cr>", { buffer = buf, desc = "Save Capture" })
+	vim.keymap.set("n", state.cfg.mappings.close, "<cmd>q<cr>", { buffer = buf, desc = "Discard Capture" })
 end
 
 --- Drops the SQLite database, re-creates it (schema + migrations), and
@@ -406,45 +439,6 @@ function M.reset()
 	notify.info("Re-indexing notebook: " .. state.nb.title, state.cfg.silent)
 	local count = sync_all(state.nb)
 	notify.info(string.format("Reset complete! Re-indexed %d notes.", count))
-end
-
---- @class BookwyrmSearchNotesQuery
---- @field text string # The search text to match against title, aliases, and tags
-
---- @class BookwyrmSearchNotesOpts
---- @field nb_id integer? # The id of the notebook to search in, defaults to the active notebook.
-
---- Searches notes in the active (or specified) notebook.
----
---- Matches `query.text` against note titles, aliases, and tags using
---- case-insensitive substring matching.  Fuzzy refinement is left to the
---- caller (e.g. a picker).
----
---- Each entry has the same fields as `list_notes()`, including `tags` as
---- `BookwyrmTag[]` and `aliases` as `BookwyrmAlias[]` object arrays.
----
---- Returns an empty list when no active notebook is set.  Returns all notes
---- when `query.text` is nil or empty (equivalent to `list_notes()`).
----
---- @param query BookwyrmSearchNotesQuery # The search query
---- @param opts BookwyrmSearchNotesOpts? # Search options
---- @return BookwyrmNote[]
-function M.search_notes(query, opts)
-	state.ensure_active()
-	if not state.nb then
-		return {}
-	end
-
-	local nb_id = (opts and opts.nb_id) or state.get_active_id()
-	if not nb_id then
-		return {}
-	end
-
-	if not query or not query.text or query.text == "" then
-		return state.get_conn().notes:list(nb_id)
-	end
-
-	return state.get_conn().notes:search(nb_id, query.text)
 end
 
 --- Scans the active notebook directory, parses each markdown file with

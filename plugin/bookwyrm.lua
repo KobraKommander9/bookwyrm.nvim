@@ -130,7 +130,10 @@ vim.api.nvim_create_user_command("BookwyrmNoteBacklinks", function()
 		end,
 	}, function(link)
 		if link then
-			bookwyrm.api.open(link.source_path)
+			local note = bookwyrm.api.get_note(link.note_id)
+			if note then
+				bookwyrm.api.open(note, { float = true })
+			end
 		end
 	end)
 end, { desc = "Show backlinks for the current buffer" })
@@ -149,7 +152,6 @@ vim.api.nvim_create_user_command("BookwyrmNoteSearch", function()
 	end
 
 	local notes = bookwyrm.api.list_notes()
-	local nb = bookwyrm.api.get_active_notebook(true)
 
 	vim.ui.select(notes, {
 		prompt = "Find Note",
@@ -157,8 +159,8 @@ vim.api.nvim_create_user_command("BookwyrmNoteSearch", function()
 			return note.title
 		end,
 	}, function(note)
-		if note and nb then
-			bookwyrm.api.open(nb.root_path .. "/" .. note.relative_path)
+		if note then
+			bookwyrm.api.open(note, { float = true })
 		end
 	end)
 end, { desc = "Find note" })
