@@ -106,7 +106,6 @@ function M.register_notebook(opts)
 
 	nb.id = id
 	state.set_active(nb)
-	notify.info("Active: " .. nb.title, state.cfg.silent)
 
 	return nb
 end
@@ -141,12 +140,24 @@ function M.set_active_notebook(entry)
 	--- @type BookwyrmBook?
 	local nb
 
+	if not entry then
+		local id = state.get_active_id()
+		if not id then
+			notify.error("no notebook specified", state.cfg.silent)
+			return nil
+		end
+
+		entry = id
+	end
+
 	if type(entry) == "number" then
 		nb = state.get_conn().notebooks:get_by_id(entry)
 		if not nb then
 			notify.error("notebook not found: " .. tostring(entry), state.cfg.silent)
 			return nil
 		end
+	else
+		nb = entry --[[@as BookwyrmBook]]
 	end
 
 	if not nb or not nb.id then
@@ -159,7 +170,7 @@ function M.set_active_notebook(entry)
 	end
 
 	state.set_active(nb)
-	notify.info("Active: " .. nb.title, state.cfg.silent)
+	-- hooks.fire("notebook_switched", { notebook = nb })
 
 	return state.nb
 end

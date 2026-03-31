@@ -94,15 +94,6 @@ local MIGRATIONS = {
       );
     ]],
 	},
-	{
-		id = "002_kv_store",
-		script = [[
-      CREATE TABLE kv_store (
-        key TEXT PRIMARY KEY,
-        value TEXT
-      );
-    ]],
-	},
 }
 
 --- Opens a connection to the notebook db.

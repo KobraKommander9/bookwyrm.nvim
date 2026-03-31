@@ -10,10 +10,11 @@ local registry = {}
 --- Maps internal event names to Neovim User autocommand patterns.
 --- @type table<string, string>
 local nvim_patterns = {
-	pre_sync = "BookwyrmPreSync",
-	post_sync = "BookwyrmPostSync",
-	note_opened = "BookwyrmNoteOpened",
 	note_captured = "BookwyrmNoteCaptured",
+	note_opened = "BookwyrmNoteOpened",
+	notebook_switched = "BookwyrmNotebookSwitched",
+	post_sync = "BookwyrmPostSync",
+	pre_sync = "BookwyrmPreSync",
 }
 
 --- Registers a callback for a named lifecycle event.
