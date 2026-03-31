@@ -65,12 +65,17 @@ end, { desc = "Register a Bookwyrm notebook" })
 vim.api.nvim_create_user_command("BookwyrmNotebookRename", function()
 	local path = vim.fn.getcwd()
 
+	local nb = require("bookwyrm").api.get_active_notebook(true)
+	if not nb then
+		return
+	end
+
 	vim.ui.input({
 		prompt = "Enter Notebook Title: ",
 		default = vim.fn.fnamemodify(path, ":t"),
 	}, function(input)
 		if input and input ~= "" then
-			require("bookwyrm").api.rename_notebook(input)
+			require("bookwyrm").api.rename_notebook(input, nb.id)
 		end
 	end)
 end, { desc = "Rename active Bookwyrm notebook" })

@@ -39,7 +39,7 @@ function M.get_active_notebook(skip_db)
 		return nil
 	end
 
-	state.set_active(result)
+	state.set_active(result, true)
 
 	return state.nb
 end

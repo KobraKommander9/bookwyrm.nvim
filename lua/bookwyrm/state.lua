@@ -73,14 +73,18 @@ end
 --- Sets the active notebook.
 ---
 --- @param nb? BookwyrmBook
-function M.set_active(nb)
+--- @param silent? boolean
+function M.set_active(nb, silent)
 	if not nb then
 		return
 	end
 
 	if not M.nb or M.nb.id ~= nb.id then
 		M.nb = nb
-		notify.info("Bookwyrm Switched to " .. M.nb.title, M.cfg.silent)
+
+		if not silent then
+			notify.info("Bookwyrm Switched to " .. M.nb.title, M.cfg.silent)
+		end
 	end
 end
 

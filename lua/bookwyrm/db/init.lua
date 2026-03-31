@@ -15,7 +15,7 @@ end
 
 local MIGRATIONS = {
 	{
-		id = "001_init_db",
+		id = "001_setup_notebooks",
 		script = [[
       CREATE TABLE notebooks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +26,11 @@ local MIGRATIONS = {
         UNIQUE(is_default),
         UNIQUE(root_path)
       );
-
+    ]],
+	},
+	{
+		id = "002_setup_notes",
+		script = [[
       CREATE TABLE notes (
         fsize INTEGER,
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +41,11 @@ local MIGRATIONS = {
         UNIQUE(notebook_id, relative_path),
         FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
       );
-
+    ]],
+	},
+	{
+		id = "003_setup_anchors",
+		script = [[
       CREATE TABLE anchors (
         anchor_id TEXT NOT NULL,
         content TEXT NOT NULL,
@@ -52,7 +60,11 @@ local MIGRATIONS = {
         PRIMARY KEY (note_id, anchor_id),
         FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
       );
-
+    ]],
+	},
+	{
+		id = "004_setup_links",
+		script = [[
       CREATE TABLE links (
         context TEXT NOT NULL,
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,21 +81,33 @@ local MIGRATIONS = {
         FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
         FOREIGN KEY (target_note_id) REFERENCES notes(id) ON DELETE SET NULL
       );
-
+    ]],
+	},
+	{
+		id = "005_setup_aliases",
+		script = [[
       CREATE TABLE aliases (
         alias TEXT NOT NULL,
         note_id INTEGER NOT NULL,
         PRIMARY KEY (note_id, alias),
         FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
       );
-
+    ]],
+	},
+	{
+		id = "006_setup_tags",
+		script = [[
       CREATE TABLE tags (
         note_id INTEGER NOT NULL,
         tag TEXT NOT NULL,
         PRIMARY KEY (note_id, tag),
         FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
       );
-
+    ]],
+	},
+	{
+		id = "007_setup_tasks",
+		script = [[
       CREATE TABLE tasks (
         content TEXT NOT NULL,
         id INTEGER PRIMARY KEY AUTOINCREMENT,
